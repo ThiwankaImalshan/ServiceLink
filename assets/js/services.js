@@ -287,21 +287,9 @@ function populateCategoryFilter() {
 }
 
 function bindFilterEvents() {
-  ['searchInput','categorySelect','priceMin','priceMax','activeOnly','skilledOnly','locationInput'].forEach(id => {
-    document.getElementById(id).addEventListener('input', filterProviders);
-    document.getElementById(id).addEventListener('change', filterProviders);
-  });
-  
-  // Search button functionality
+  // Only filter on button click
   document.getElementById('searchButton').addEventListener('click', filterProviders);
-  
-  // Enter key in search input triggers search
-  document.getElementById('searchInput').addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      filterProviders();
-    }
-  });
-  
+  // Clear filters button
   document.getElementById('clearFilters').addEventListener('click', () => {
     ['searchInput','priceMin','priceMax','locationInput'].forEach(id => document.getElementById(id).value = '');
     ['activeOnly','skilledOnly'].forEach(id => document.getElementById(id).checked = false);
@@ -312,7 +300,7 @@ function bindFilterEvents() {
 
 window.initServicesMap = function() {
   providers = getAllProviders();
-  
+
   // Initialize desktop map
   const mapEl = document.getElementById('servicesMap');
   if (mapEl) {
@@ -326,7 +314,7 @@ window.initServicesMap = function() {
   populateCategoryFilter();
   bindFilterEvents();
   initMobileMapEvents();
-  filterProviders();
+  // Do not call filterProviders() automatically. Only call on button click.
 };
 
 function initMobileMapEvents() {

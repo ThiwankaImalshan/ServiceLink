@@ -30,17 +30,40 @@ if ($_POST) {
                 try {
                     $db->beginTransaction();
                     
-                    // Update user basic info
-                    $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, role = ?, email_verified = ? WHERE id = ?");
-                    $stmt->execute([
-                        $_POST['first_name'],
-                        $_POST['last_name'],
-                        $_POST['email'],
-                        $_POST['phone'],
-                        $_POST['role'],
-                        isset($_POST['email_verified']) ? 1 : 0,
-                        $user_id
-                    ]);
+                    $updateFields = [];
+                    $updateValues = [];
+
+                    // Dynamically build the query based on non-empty fields
+                    if (!empty($_POST['first_name'])) {
+                        $updateFields[] = "first_name = ?";
+                        $updateValues[] = $_POST['first_name'];
+                    }
+                    if (!empty($_POST['last_name'])) {
+                        $updateFields[] = "last_name = ?";
+                        $updateValues[] = $_POST['last_name'];
+                    }
+                    if (!empty($_POST['email'])) {
+                        $updateFields[] = "email = ?";
+                        $updateValues[] = $_POST['email'];
+                    }
+                    if (!empty($_POST['phone'])) {
+                        $updateFields[] = "phone = ?";
+                        $updateValues[] = $_POST['phone'];
+                    }
+                    if (!empty($_POST['role'])) {
+                        $updateFields[] = "role = ?";
+                        $updateValues[] = $_POST['role'];
+                    }
+                    $updateFields[] = "email_verified = ?";
+                    $updateValues[] = isset($_POST['email_verified']) ? 1 : 0;
+
+                    $updateValues[] = $user_id;
+
+                    // Only execute the query if there are fields to update
+                    if (!empty($updateFields)) {
+                        $stmt = $db->prepare("UPDATE users SET " . implode(", ", $updateFields) . " WHERE id = ?");
+                        $stmt->execute($updateValues);
+                    }
                     
                     // Update password if provided
                     if (!empty($_POST['new_password'])) {
@@ -306,7 +329,7 @@ include '../includes/header.php';
                                         default: echo 'bg-green-100 text-green-800'; break;
                                     }
                                     ?>">
-                                    <?php echo ucfirst($user['role']); ?>
+                                    <?php echo ucfirst($user['role'] ?? 'unknown'); ?>
                                 </span>
                             </div>
                         </div>

@@ -12,9 +12,9 @@ if (isset($auth) && is_object($auth) && method_exists($auth, 'getCurrentUser')) 
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-8">
         <!-- Brand Section -->
         <div class="lg:col-span-2">
-          <a href="<?php echo BASE_URL; ?>/index.php" class="flex items-center space-x-2 text-xl font-bold text-white mb-4">
+          <a href="index.php" class="flex items-center space-x-2 text-xl font-bold text-white mb-4">
             <div class="bg-white p-2 rounded-lg">
-              <img src="<?php echo BASE_URL; ?>/assets/img/logo.png" alt="ServiceLink Logo" class="h-6 w-6 object-contain">
+              <img src="assets/img/logo.png" alt="ServiceLink Logo" class="h-6 w-6 object-contain">
             </div>
             <span>ServiceLink</span>
           </a>

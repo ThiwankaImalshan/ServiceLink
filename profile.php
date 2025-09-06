@@ -269,6 +269,12 @@ $stmt->execute([$currentUser['id'], $currentUser['id']]);
 $result = $stmt->fetch();
 $stats['messages'] = $result['count'];
 
+// Get user's favorites count
+$stmt = $db->prepare("SELECT COUNT(*) as count FROM favorite_providers WHERE customer_id = ?");
+$stmt->execute([$currentUser['id']]);
+$result = $stmt->fetch();
+$stats['favorites'] = $result['count'];
+
 // Get provider info if user is a provider
 $providerInfo = null;
 if ($currentUser['role'] === 'provider') {
@@ -304,16 +310,16 @@ include 'includes/header.php';
             <?php echo htmlspecialchars($flashMessage); ?>
         </div>
     </div>
-    <?php endif; ?>
+     <?php endif; ?>
     
     
     <!-- Profile Header -->
-    <div class="bg-white rounded-2xl shadow-xl border border-neutral-200 p-8 mb-8">
-      <div class="flex flex-col lg:flex-row items-start lg:items-center space-y-6 lg:space-y-0 lg:space-x-8">
+    <div class="bg-white rounded-2xl shadow-xl border border-neutral-200 p-4 sm:p-6 lg:p-8 mb-8">
+      <div class="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
         
         <!-- Profile Photo Section -->
-        <div class="relative flex-shrink-0">
-          <div class="relative">
+        <div class="relative flex-shrink-0 w-full md:w-auto flex justify-center md:block">
+          <div class="relative w-fit mx-auto md:mx-0">
             <?php 
             // Enhanced profile photo display with debugging
             $profilePhotoPath = $currentUser['profile_photo'] ?? '';
@@ -335,22 +341,22 @@ include 'includes/header.php';
             
             <?php if ($hasValidPhoto): ?>
             <!-- Profile Photo Display -->
-            <div class="profile-photo-container relative">
+            <div class="profile-photo-container relative mx-auto">
                 <img id="profilePhoto" 
                      src="<?php echo htmlspecialchars($photoUrl); ?>?v=<?php echo time(); ?>"
                      alt="<?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?>"
-                     class="w-32 h-32 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-primary-100 transition-all duration-300 hover:scale-105" 
+                     class="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-primary-100 transition-all duration-300 hover:scale-105" 
                      onload="this.style.opacity='1';"
                      onerror="handleImageError(this);"
                      style="opacity: 0;" />
                      
                 <!-- Loading placeholder while image loads -->
-                <div id="photoLoading" class="absolute inset-0 w-32 h-32 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center border-4 border-white shadow-2xl ring-4 ring-primary-100 animate-pulse">
+                <div id="photoLoading" class="absolute inset-0 w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-gray-200 to-gray-300 flex items-center justify-center border-4 border-white shadow-2xl ring-4 ring-primary-100 animate-pulse">
                     <i class="fa-solid fa-spinner fa-spin text-2xl text-gray-400"></i>
                 </div>
                 
                 <!-- Fallback avatar (hidden by default) -->
-                <div id="avatarFallback" class="w-32 h-32 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center border-4 border-white shadow-2xl ring-4 ring-primary-100 hidden">
+                <div id="avatarFallback" class="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center border-4 border-white shadow-2xl ring-4 ring-primary-100 hidden">
                     <div class="text-center">
                         <i class="fa-solid fa-user text-3xl lg:text-4xl text-primary-600 mb-1"></i>
                         <div class="text-xs text-primary-500 font-medium">
@@ -361,7 +367,7 @@ include 'includes/header.php';
             </div>
             <?php else: ?>
             <!-- Default Avatar with Initials -->
-            <div class="w-32 h-32 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center border-4 border-white shadow-2xl ring-4 ring-primary-100 hover:scale-105 transition-all duration-300">
+            <div class="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center border-4 border-white shadow-2xl ring-4 ring-primary-100 hover:scale-105 transition-all duration-300 mx-auto">
                 <div class="text-center">
                     <i class="fa-solid fa-user text-3xl lg:text-4xl text-primary-600 mb-1"></i>
                     <div class="text-xs text-primary-500 font-medium">
@@ -389,96 +395,106 @@ include 'includes/header.php';
 
         <!-- Profile Info -->
         <div class="flex-1 min-w-0">
-          <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-            <div>
-              <h1 id="profileName" class="text-3xl lg:text-4xl font-bold text-neutral-900 mb-2">
+          <div class="flex flex-col md:block w-full space-y-6 md:space-y-0 mb-4">
+            <div class="flex flex-col items-center md:items-start w-full md:max-w-none text-center md:text-left">
+              <h1 id="profileName" class="text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 mb-4">
                 <?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?>
               </h1>
-              <div class="flex items-center space-x-4 text-neutral-600 mb-4">
-                <span id="profileLocation" class="flex items-center space-x-2">
+              <div class="flex flex-col md:flex-row items-center md:items-start space-y-3 md:space-y-0 md:space-x-4 text-neutral-600 text-sm sm:text-base mb-6">
+                <span id="profileLocation" class="flex items-center space-x-3 px-4 py-2 md:px-0 md:py-0">
                   <i class="fa-solid fa-envelope text-primary-500"></i>
-                  <span><?php echo htmlspecialchars($currentUser['email']); ?></span>
+                  <span class="truncate max-w-[200px] sm:max-w-xs"><?php echo htmlspecialchars($currentUser['email']); ?></span>
                 </span>
-                <span id="profileJoined" class="flex items-center space-x-2">
+                <span id="profileJoined" class="flex items-center space-x-3 px-4 py-2 md:px-0 md:py-0">
                   <i class="fa-solid fa-calendar text-primary-500"></i>
                   <span>Joined <?php echo date('M Y', strtotime($currentUser['created_at'])); ?></span>
                 </span>
               </div>
-              <div class="flex items-center space-x-4 mt-2">
+              <div class="flex flex-wrap justify-center md:justify-start gap-3 mb-6 md:mb-4">
                 <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-primary-100 text-primary-800">
                     <i class="fas fa-user-tag mr-1"></i>
-                    <?php echo htmlspecialchars(ucfirst($currentUser['role'])); ?>
+                    <?php echo htmlspecialchars(ucfirst($currentUser['role'] ?? 'unknown')); ?>
                 </span>
                 <?php if ($currentUser['email_verified']): ?>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-green-100 text-green-800">
-                        <i class="fas fa-check-circle mr-1"></i>Verified
+                        <i class="fas fa-check-circle mr-1"></i>
+                        Verified
                     </span>
                 <?php else: ?>
                     <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-100 text-yellow-800">
-                        <i class="fas fa-exclamation-triangle mr-1"></i>Unverified
+                        <i class="fas fa-exclamation-triangle mr-1"></i>
+                        Unverified
                     </span>
                 <?php endif; ?>
               </div>
+              <button id="editProfileBtn" class="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center md:justify-start space-x-2 shadow-lg w-full max-w-xs md:w-auto">
+                <i class="fa-solid fa-edit"></i>
+                <span>Edit Profile</span>
+              </button>
             </div>
-            <button id="editProfileBtn" class="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center space-x-2 shadow-lg">
-              <i class="fa-solid fa-edit"></i>
-              <span>Edit Profile</span>
-            </button>
           </div>
 
           <!-- Profile Stats -->
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div class="bg-gradient-to-r from-blue-50 to-primary-50 p-4 rounded-xl border border-blue-100">
-              <div class="text-2xl font-bold text-primary-700" id="totalServices">
-                <?php
-                // Get provider stats if user is a provider
-                $totalServices = 0;
-                if ($currentUser['role'] === 'provider') {
-                  try {
-                    $stmt = $db->prepare("SELECT COUNT(*) as count FROM providers WHERE user_id = ?");
-                    $stmt->bind_param("i", $currentUser['id']);
-                    $stmt->execute();
-                    $result = $stmt->get_result()->fetch_assoc();
-                    $totalServices = $result['count'];
-                  } catch (Exception $e) {}
-                }
-                echo $totalServices;
-                ?>
+          <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 w-full">
+            <div class="bg-gradient-to-r from-blue-50 to-primary-50 p-4 rounded-xl border border-blue-100 hover:shadow-lg transition-shadow duration-300">
+              <div class="text-center">
+                <div class="text-2xl sm:text-3xl font-bold text-primary-700 mb-1" id="totalServices">
+                  <?php
+                  // Get provider stats if user is a provider
+                  $totalServices = 0;
+                  if ($currentUser['role'] === 'provider') {
+                    try {
+                      $stmt = $db->prepare("SELECT COUNT(*) as count FROM providers WHERE user_id = ?");
+                      $stmt->bind_param("i", $currentUser['id']);
+                      $stmt->execute();
+                      $result = $stmt->get_result()->fetch_assoc();
+                      $totalServices = $result['count'];
+                    } catch (Exception $e) {}
+                  }
+                  echo $totalServices;
+                  ?>
+                </div>
+                <div class="text-sm text-primary-600 font-medium">Services Posted</div>
               </div>
-              <div class="text-sm text-primary-600">Services Posted</div>
             </div>
-            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-              <div class="text-2xl font-bold text-emerald-700" id="totalRequests">
-                <?php echo $stats['requests']; ?>
+            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100 hover:shadow-lg transition-shadow duration-300">
+              <div class="text-center">
+                <div class="text-2xl sm:text-3xl font-bold text-emerald-700 mb-1" id="totalRequests">
+                  <?php echo $stats['requests']; ?>
+                </div>
+                <div class="text-sm text-emerald-600 font-medium">Requests Made</div>
               </div>
-              <div class="text-sm text-emerald-600">Requests Made</div>
             </div>
-            <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
-              <div class="text-2xl font-bold text-amber-700" id="averageRating">
-                <?php
-                // Get average rating if provider
-                $averageRating = '0.0';
-                if ($currentUser['role'] === 'provider') {
-                  try {
-                    $stmt = $db->prepare("SELECT AVG(rating) as avg_rating FROM reviews r JOIN providers p ON r.provider_id = p.id WHERE p.user_id = ?");
-                    $stmt->bind_param("i", $currentUser['id']);
-                    $stmt->execute();
-                    $result = $stmt->get_result()->fetch_assoc();
-                    if ($result['avg_rating']) {
-                      $averageRating = number_format($result['avg_rating'], 1);
-                    }
-                  } catch (Exception $e) {}
-                }
-                echo $averageRating;
-                ?>
+            <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100 hover:shadow-lg transition-shadow duration-300">
+              <div class="text-center">
+                <div class="text-2xl sm:text-3xl font-bold text-amber-700 mb-1" id="averageRating">
+                  <?php
+                  // Get average rating if provider
+                  $averageRating = '0.0';
+                  if ($currentUser['role'] === 'provider') {
+                    try {
+                      $stmt = $db->prepare("SELECT AVG(rating) as avg_rating FROM reviews r JOIN providers p ON r.provider_id = p.id WHERE p.user_id = ?");
+                      $stmt->bind_param("i", $currentUser['id']);
+                      $stmt->execute();
+                      $result = $stmt->get_result()->fetch_assoc();
+                      if ($result['avg_rating']) {
+                        $averageRating = number_format($result['avg_rating'], 1);
+                      }
+                    } catch (Exception $e) {}
+                  }
+                  echo $averageRating;
+                  ?>
+                </div>
+                <div class="text-sm text-amber-600 font-medium">Average Rating</div>
               </div>
-              <div class="text-sm text-amber-600">Average Rating</div>
             </div>
-            <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
-              <div class="text-2xl font-bold text-purple-700" id="completedJobs">
-                <?php echo ucfirst($currentUser['role']); ?>
+            <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100 hover:shadow-lg transition-shadow duration-300">
+              <div class="text-center">
+                <div class="text-2xl sm:text-3xl font-bold text-purple-700 mb-1" id="completedJobs">
+                  <?php echo ucfirst($currentUser['role'] ?? 'unknown'); ?>
+                </div>
+                <div class="text-sm text-purple-600 font-medium">Account Type</div>
               </div>
-              <div class="text-sm text-purple-600">Account Type</div>
             </div>
           </div>
         </div>
@@ -487,46 +503,182 @@ include 'includes/header.php';
 
     <!-- Tab Navigation -->
     <div class="bg-white rounded-2xl shadow-lg border border-neutral-200 mb-8">
-      <div class="border-b border-neutral-200">
-        <nav class="flex space-x-8 px-6" aria-label="Tabs">
-          <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-1 text-sm font-medium" data-tab="overview">
-            <i class="fa-solid fa-chart-line mr-2"></i>Overview
-          </button>
-          <?php if ($currentUser['role'] === 'provider'): ?>
-          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-1 text-sm font-medium transition-colors" data-tab="services">
-            <i class="fa-solid fa-briefcase mr-2"></i>My Services
-          </button>
-          <?php endif; ?>
-          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-1 text-sm font-medium transition-colors" data-tab="requests">
-            <i class="fa-solid fa-clipboard-list mr-2"></i>My Requests
-          </button>
-          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-1 text-sm font-medium transition-colors" data-tab="reviews">
-            <i class="fa-solid fa-star mr-2"></i>Reviews
-          </button>
-          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-1 text-sm font-medium transition-colors" data-tab="settings">
-            <i class="fa-solid fa-cog mr-2"></i>Settings
-          </button>
-        </nav>
+      <div class="border-b border-neutral-200 overflow-x-auto scrollbar-hide">
+        <div class="max-w-7xl mx-auto">
+          <nav class="flex flex-nowrap justify-start md:justify-center min-w-full px-2 sm:px-4" aria-label="Tabs">
+            <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="overview">
+              <i class="fa-solid fa-chart-line text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+              <span class="text-xs sm:text-sm">Overview</span>
+            </button>
+            <?php if ($currentUser['role'] === 'provider'): ?>
+            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="services">
+              <i class="fa-solid fa-briefcase text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+              <span class="text-xs sm:text-sm">Services</span>
+            </button>
+            <?php endif; ?>
+            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="requests">
+              <i class="fa-solid fa-clipboard-list text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+              <span class="text-xs sm:text-sm">Requests</span>
+            </button>
+            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="reviews">
+              <i class="fa-solid fa-star text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+              <span class="text-xs sm:text-sm">Reviews</span>
+            </button>
+            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="favorites">
+              <i class="fa-solid fa-heart text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+              <span class="text-xs sm:text-sm">Favorites</span>
+            </button>
+            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="settings">
+              <i class="fa-solid fa-cog text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+              <span class="text-xs sm:text-sm">Settings</span>
+            </button>
+          </nav>
+        </div>
       </div>
 
       <!-- Tab Content -->
       <div class="p-6">
                 <!-- Overview Tab -->
                 <div id="overview-tab" class="tab-content">
-                    <h3 class="text-lg font-semibold mb-4">Overview</h3>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div class="bg-blue-50 p-4 rounded-lg">
-                            <h4 class="font-medium text-blue-900 mb-2">Profile Information</h4>
-                            <p class="text-blue-700">Name: <?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?></p>
-                            <p class="text-blue-700">Email: <?php echo htmlspecialchars($currentUser['email']); ?></p>
-                            <p class="text-blue-700">Phone: <?php echo htmlspecialchars($currentUser['phone'] ?? 'Not provided'); ?></p>
-                            <p class="text-blue-700">Role: <?php echo htmlspecialchars(ucfirst($currentUser['role'] ?? 'user')); ?></p>
-                        </div>
-                        <div class="bg-green-50 p-4 rounded-lg">
-                            <h4 class="font-medium text-green-900 mb-2">Account Status</h4>
-                            <p class="text-green-700">✅ Account Active</p>
-                            <p class="text-green-700">📅 Joined: <?php echo date('M j, Y', strtotime($currentUser['created_at'])); ?></p>
-                        </div>
+                    <h3 class="text-lg font-semibold mb-4">Recent Activities</h3>
+                    <div class="space-y-6">
+                        <?php
+                        // Get recent activities (service requests, bookings, reviews, etc.)
+                        $activities = [];
+
+                        // Get recent service requests
+                        $stmt = $db->prepare("SELECT 'request' as type, w.title, w.created_at, w.status 
+                                           FROM wanted_ads w 
+                                           WHERE w.user_id = ? 
+                                           ORDER BY w.created_at DESC LIMIT 5");
+                        $stmt->execute([$currentUser['id']]);
+                        $activities = array_merge($activities, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+                        // Get recent reviews (if provider)
+                        if ($currentUser['role'] === 'provider') {
+                            $stmt = $db->prepare("SELECT 'review' as type, r.rating, r.comment, r.created_at, 
+                                                u.first_name, u.last_name 
+                                                FROM reviews r 
+                                                JOIN providers p ON r.provider_id = p.id 
+                                                JOIN users u ON r.user_id = u.id 
+                                                WHERE p.user_id = ? 
+                                                ORDER BY r.created_at DESC LIMIT 5");
+                            $stmt->execute([$currentUser['id']]);
+                            $activities = array_merge($activities, $stmt->fetchAll(PDO::FETCH_ASSOC));
+                        }
+
+                        // Get recent messages
+                        $stmt = $db->prepare("SELECT 'message' as type, m.message, m.created_at, 
+                                            CASE WHEN m.sender_id = ? THEN 'sent' ELSE 'received' END as direction,
+                                            u.first_name, u.last_name
+                                            FROM messages m 
+                                            JOIN users u ON (m.sender_id = ? AND m.recipient_id = u.id) 
+                                                       OR (m.recipient_id = ? AND m.sender_id = u.id)
+                                            ORDER BY m.created_at DESC LIMIT 5");
+                        $stmt->execute([$currentUser['id'], $currentUser['id'], $currentUser['id']]);
+                        $activities = array_merge($activities, $stmt->fetchAll(PDO::FETCH_ASSOC));
+
+                        // Sort all activities by date
+                        usort($activities, function($a, $b) {
+                            return strtotime($b['created_at']) - strtotime($a['created_at']);
+                        });
+
+                        if (!empty($activities)):
+                            foreach ($activities as $activity): ?>
+                                <div class="bg-white border border-neutral-200 rounded-lg shadow-sm hover:shadow-md transition-shadow">
+                                    <div class="p-4">
+                                        <?php switch($activity['type']):
+                                            case 'request': ?>
+                                                <div class="flex items-start">
+                                                    <div class="flex-shrink-0">
+                                                        <div class="w-10 h-10 rounded-full bg-blue-100 flex items-center justify-center">
+                                                            <i class="fas fa-clipboard-list text-blue-600"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <p class="text-gray-900">
+                                                            Posted a service request: <span class="font-medium"><?php echo htmlspecialchars($activity['title']); ?></span>
+                                                        </p>
+                                                        <p class="text-sm text-gray-500 mt-1">
+                                                            Status: <span class="inline-block px-2 py-1 text-xs font-medium rounded-full
+                                                            <?php echo $activity['status'] === 'open' ? 'bg-green-100 text-green-800' : 
+                                                                   ($activity['status'] === 'in_progress' ? 'bg-blue-100 text-blue-800' : 
+                                                                    'bg-gray-100 text-gray-800'); ?>">
+                                                                <?php echo ucfirst($activity['status']); ?>
+                                                            </span>
+                                                        </p>
+                                                        <p class="text-xs text-gray-400 mt-1">
+                                                            <i class="far fa-clock mr-1"></i>
+                                                            <?php echo date('M j, Y g:i A', strtotime($activity['created_at'])); ?>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <?php break;
+                                            case 'review': ?>
+                                                <div class="flex items-start">
+                                                    <div class="flex-shrink-0">
+                                                        <div class="w-10 h-10 rounded-full bg-yellow-100 flex items-center justify-center">
+                                                            <i class="fas fa-star text-yellow-600"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <p class="text-gray-900">
+                                                            Received a <?php echo $activity['rating']; ?> star review from 
+                                                            <span class="font-medium">
+                                                                <?php echo htmlspecialchars($activity['first_name'] . ' ' . substr($activity['last_name'], 0, 1) . '.'); ?>
+                                                            </span>
+                                                        </p>
+                                                        <p class="text-sm text-gray-600 mt-1">
+                                                            "<?php echo htmlspecialchars($activity['comment']); ?>"
+                                                        </p>
+                                                        <p class="text-xs text-gray-400 mt-1">
+                                                            <i class="far fa-clock mr-1"></i>
+                                                            <?php echo date('M j, Y g:i A', strtotime($activity['created_at'])); ?>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <?php break;
+                                            case 'message': ?>
+                                                <div class="flex items-start">
+                                                    <div class="flex-shrink-0">
+                                                        <div class="w-10 h-10 rounded-full bg-purple-100 flex items-center justify-center">
+                                                            <i class="fas <?php echo $activity['direction'] === 'sent' ? 'fa-paper-plane' : 'fa-envelope'; ?> text-purple-600"></i>
+                                                        </div>
+                                                    </div>
+                                                    <div class="ml-4">
+                                                        <p class="text-gray-900">
+                                                            <?php if ($activity['direction'] === 'sent'): ?>
+                                                                Sent a message to
+                                                            <?php else: ?>
+                                                                Received a message from
+                                                            <?php endif; ?>
+                                                            <span class="font-medium">
+                                                                <?php echo htmlspecialchars($activity['first_name'] . ' ' . substr($activity['last_name'], 0, 1) . '.'); ?>
+                                                            </span>
+                                                        </p>
+                                                        <p class="text-sm text-gray-600 mt-1">
+                                                            "<?php echo htmlspecialchars(substr($activity['message'], 0, 100) . (strlen($activity['message']) > 100 ? '...' : '')); ?>"
+                                                        </p>
+                                                        <p class="text-xs text-gray-400 mt-1">
+                                                            <i class="far fa-clock mr-1"></i>
+                                                            <?php echo date('M j, Y g:i A', strtotime($activity['created_at'])); ?>
+                                                        </p>
+                                                    </div>
+                                                </div>
+                                                <?php break;
+                                        endswitch; ?>
+                                    </div>
+                                </div>
+                            <?php endforeach;
+                        else: ?>
+                            <div class="text-center py-8 bg-gray-50 rounded-lg border-2 border-dashed border-gray-200">
+                                <div class="text-gray-400 mb-3">
+                                    <i class="fas fa-history text-4xl"></i>
+                                </div>
+                                <h4 class="text-gray-900 font-medium mb-1">No Recent Activity</h4>
+                                <p class="text-gray-600 text-sm">Your recent activities will appear here.</p>
+                            </div>
+                        <?php endif; ?>
                     </div>
                 </div>
 
@@ -542,23 +694,315 @@ include 'includes/header.php';
 
                 <!-- Requests Tab -->
                 <div id="requests-tab" class="tab-content hidden">
-                    <h3 class="text-lg font-semibold mb-4">My Requests</h3>
-                    <div class="bg-purple-50 p-4 rounded-lg">
-                        <p class="text-purple-700">📋 No requests found. Your service requests will appear here.</p>
+                    <div class="mb-6 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">My Requests</h3>
+                        <a href="wanted.php" class="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white text-sm font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                            <i class="fas fa-plus mr-2"></i>
+                            New Request
+                        </a>
                     </div>
+                    <?php
+                    // Get user's wanted ads
+                    $stmt = $db->prepare("SELECT w.*, c.name as category_name 
+                                       FROM wanted_ads w 
+                                       LEFT JOIN categories c ON w.category_id = c.id 
+                                       WHERE w.user_id = ? 
+                                       ORDER BY w.created_at DESC");
+                    $stmt->execute([$currentUser['id']]);
+                    $requests = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    if (!empty($requests)): ?>
+                        <div class="space-y-4">
+                        <?php foreach ($requests as $request): ?>
+                            <div class="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                                <div class="p-6">
+                                    <div class="flex items-start justify-between">
+                                        <div>
+                                            <h4 class="font-medium text-gray-900 mb-1"><?php echo htmlspecialchars($request['title']); ?></h4>
+                                            <p class="text-sm text-gray-600 mb-2">
+                                                <i class="fas fa-folder text-primary-500 mr-1"></i>
+                                                <?php echo htmlspecialchars($request['category_name']); ?>
+                                            </p>
+                                        </div>
+                                        <span class="px-3 py-1 text-xs font-medium rounded-full 
+                                            <?php echo $request['status'] === 'open' ? 'bg-green-100 text-green-800' : 
+                                                   ($request['status'] === 'in_progress' ? 'bg-blue-100 text-blue-800' : 
+                                                    'bg-gray-100 text-gray-800'); ?>">
+                                            <?php echo ucfirst(str_replace('_', ' ', $request['status'])); ?>
+                                        </span>
+                                    </div>
+                                    <p class="text-gray-600 text-sm mb-4 line-clamp-2">
+                                        <?php echo htmlspecialchars($request['description']); ?>
+                                    </p>
+                                    <div class="flex items-center justify-between text-sm">
+                                        <span class="text-gray-500">
+                                            <i class="fas fa-clock text-gray-400 mr-1"></i>
+                                            <?php echo date('M j, Y', strtotime($request['created_at'])); ?>
+                                        </span>
+                                        <?php if (isset($request['budget_min']) || isset($request['budget_max'])): ?>
+                                            <span class="font-medium text-primary-600">
+                                                <i class="fas fa-tag mr-1"></i>
+                                                <?php 
+                                                if (isset($request['budget_min']) && isset($request['budget_max'])) {
+                                                    echo '$' . number_format($request['budget_min'], 2) . ' - $' . number_format($request['budget_max'], 2);
+                                                } elseif (isset($request['budget_min'])) {
+                                                    echo 'From $' . number_format($request['budget_min'], 2);
+                                                } elseif (isset($request['budget_max'])) {
+                                                    echo 'Up to $' . number_format($request['budget_max'], 2);
+                                                }
+                                                ?>
+                                            </span>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                                <div class="bg-gray-50 px-6 py-3 border-t border-neutral-200">
+                                    <div class="flex justify-between items-center">
+                                        <a href="wanted.php?id=<?php echo $request['id']; ?>" class="text-primary-600 hover:text-primary-700 font-medium text-sm">
+                                            View Details
+                                            <i class="fas fa-arrow-right ml-1"></i>
+                                        </a>
+                                        <?php if ($request['status'] === 'open'): ?>
+                                            <button class="text-red-600 hover:text-red-700 text-sm font-medium"
+                                                    onclick="deleteRequest(<?php echo $request['id']; ?>)">
+                                                <i class="fas fa-trash-alt mr-1"></i>
+                                                Delete
+                                            </button>
+                                        <?php endif; ?>
+                                    </div>
+                                </div>
+                            </div>
+                        <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="bg-gray-50 border border-neutral-200 rounded-xl p-8 text-center">
+                            <div class="text-gray-400 mb-4">
+                                <i class="fas fa-clipboard-list text-4xl"></i>
+                            </div>
+                            <h4 class="text-gray-900 font-medium mb-2">No Requests Yet</h4>
+                            <p class="text-gray-600 mb-6">You haven't posted any service requests yet.</p>
+                            <a href="wanted.php" class="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                                <i class="fas fa-plus mr-2"></i>
+                                Post a Request
+                            </a>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Reviews Tab -->
                 <div id="reviews-tab" class="tab-content hidden">
-                    <h3 class="text-lg font-semibold mb-4">Reviews</h3>
-                    <div class="bg-orange-50 p-4 rounded-lg">
-                        <p class="text-orange-700">⭐ No reviews yet. Reviews from customers will appear here.</p>
+                    <div class="mb-6 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Reviews</h3>
+                        <div class="flex items-center text-sm text-gray-600">
+                            <i class="fas fa-star text-yellow-400 mr-1"></i>
+                            <span>Average Rating: <?php 
+                            $avgRating = 0;
+                            if ($currentUser['role'] === 'provider') {
+                                $stmt = $db->prepare("SELECT AVG(rating) as avg FROM reviews r JOIN providers p ON r.provider_id = p.id WHERE p.user_id = ?");
+                                $stmt->execute([$currentUser['id']]);
+                                $result = $stmt->fetch();
+                                $avgRating = number_format($result['avg'] ?? 0, 1);
+                            }
+                            echo $avgRating;
+                            ?>/5</span>
+                        </div>
                     </div>
+                    <?php if ($currentUser['role'] === 'provider'): 
+                        // Get provider's reviews
+                        $stmt = $db->prepare("SELECT r.*, u.first_name, u.last_name, u.profile_photo 
+                                           FROM reviews r 
+                                           JOIN providers p ON r.provider_id = p.id 
+                                           JOIN users u ON r.user_id = u.id 
+                                           WHERE p.user_id = ? 
+                                           ORDER BY r.created_at DESC");
+                        $stmt->execute([$currentUser['id']]);
+                        $reviews = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                        
+                        if (!empty($reviews)): ?>
+                            <div class="space-y-6">
+                                <?php foreach ($reviews as $review): ?>
+                                    <div class="bg-white rounded-xl border border-neutral-200 shadow-sm p-6 hover:shadow-md transition-shadow">
+                                        <div class="flex items-start space-x-4">
+                                            <div class="flex-shrink-0">
+                                                <?php if (!empty($review['profile_photo'])): ?>
+                                                    <img src="<?php echo htmlspecialchars($review['profile_photo']); ?>" 
+                                                         alt="Reviewer" 
+                                                         class="w-12 h-12 rounded-full object-cover">
+                                                <?php else: ?>
+                                                    <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
+                                                        <span class="text-primary-600 font-medium text-lg">
+                                                            <?php echo strtoupper(substr($review['first_name'], 0, 1)); ?>
+                                                        </span>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="flex-1 min-w-0">
+                                                <div class="flex items-center justify-between mb-1">
+                                                    <h4 class="text-gray-900 font-medium">
+                                                        <?php echo htmlspecialchars($review['first_name'] . ' ' . substr($review['last_name'], 0, 1) . '.'); ?>
+                                                    </h4>
+                                                    <span class="text-sm text-gray-500">
+                                                        <?php echo date('M j, Y', strtotime($review['created_at'])); ?>
+                                                    </span>
+                                                </div>
+                                                <div class="flex items-center mb-2">
+                                                    <?php for ($i = 1; $i <= 5; $i++): ?>
+                                                        <i class="fas fa-star <?php echo $i <= $review['rating'] ? 'text-yellow-400' : 'text-gray-300'; ?>"></i>
+                                                    <?php endfor; ?>
+                                                    <span class="ml-2 text-sm text-gray-600"><?php echo $review['rating']; ?> out of 5</span>
+                                                </div>
+                                                <p class="text-gray-700"><?php echo htmlspecialchars($review['comment']); ?></p>
+                                                <?php if (!empty($review['reply'])): ?>
+                                                    <div class="mt-4 pl-4 border-l-4 border-primary-100">
+                                                        <p class="text-sm text-gray-600 italic">
+                                                            <span class="font-medium text-primary-600">Your reply:</span>
+                                                            <?php echo htmlspecialchars($review['reply']); ?>
+                                                        </p>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                        </div>
+                                    </div>
+                                <?php endforeach; ?>
+                            </div>
+                        <?php else: ?>
+                            <div class="bg-white border border-neutral-200 rounded-xl p-8 text-center">
+                                <div class="text-gray-400 mb-4">
+                                    <i class="fas fa-star text-4xl"></i>
+                                </div>
+                                <h4 class="text-gray-900 font-medium mb-2">No Reviews Yet</h4>
+                                <p class="text-gray-600">Once customers review your services, they'll appear here.</p>
+                            </div>
+                        <?php endif; ?>
+                    <?php else: ?>
+                        <div class="bg-white border border-neutral-200 rounded-xl p-8 text-center">
+                            <div class="text-gray-400 mb-4">
+                                <i class="fas fa-user-tie text-4xl"></i>
+                            </div>
+                            <h4 class="text-gray-900 font-medium mb-2">Provider Account Required</h4>
+                            <p class="text-gray-600 mb-6">You need to be registered as a service provider to receive reviews.</p>
+                            <a href="provider-profile.php" class="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                                <i class="fas fa-user-plus mr-2"></i>
+                                Become a Provider
+                            </a>
+                        </div>
+                    <?php endif; ?>
+                </div>
+
+                <!-- Favorites Tab -->
+                <div id="favorites-tab" class="tab-content hidden">
+                    <div class="mb-6 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Favorite Providers</h3>
+                        <div class="text-sm text-gray-600">
+                            Total Favorites: <?php echo $stats['favorites']; ?>
+                        </div>
+                    </div>
+                    <?php
+                    // Get user's favorite providers
+                    $stmt = $db->prepare("SELECT p.*, u.first_name, u.last_name, u.profile_photo, c.name as category_name,
+                                              (SELECT AVG(rating) FROM reviews WHERE provider_id = p.id) as avg_rating,
+                                              (SELECT COUNT(*) FROM reviews WHERE provider_id = p.id) as review_count
+                                       FROM favorite_providers f 
+                                       JOIN providers p ON f.provider_id = p.id 
+                                       JOIN users u ON p.user_id = u.id 
+                                       LEFT JOIN categories c ON p.category_id = c.id 
+                                       WHERE f.customer_id = ?");
+                    $stmt->execute([$currentUser['id']]);
+                    $favorites = $stmt->fetchAll(PDO::FETCH_ASSOC);
+                    
+                    if (!empty($favorites)): ?>
+                        <div class="space-y-4">
+                            <?php foreach ($favorites as $provider): ?>
+                                <div class="bg-white rounded-xl border border-neutral-200 shadow-sm overflow-hidden hover:shadow-md transition-shadow">
+                                    <div class="p-6">
+                                        <div class="flex items-start space-x-4">
+                                            <div class="flex-shrink-0">
+                                                <?php if (!empty($provider['profile_photo'])): ?>
+                                                    <img src="<?php echo htmlspecialchars($provider['profile_photo']); ?>" 
+                                                         alt="Provider" 
+                                                         class="w-16 h-16 rounded-full object-cover">
+                                                <?php else: ?>
+                                                    <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
+                                                        <span class="text-primary-600 font-medium text-xl">
+                                                            <?php echo strtoupper(substr($provider['first_name'], 0, 1)); ?>
+                                                        </span>
+                                                    </div>
+                                                <?php endif; ?>
+                                            </div>
+                                            <div class="flex-1">
+                                                <h4 class="font-medium text-gray-900">
+                                                    <?php echo htmlspecialchars($provider['first_name'] . ' ' . $provider['last_name']); ?>
+                                                </h4>
+                                                <p class="text-sm text-gray-600 mb-2">
+                                                    <i class="fas fa-folder text-primary-500 mr-1"></i>
+                                                    <?php echo htmlspecialchars($provider['category_name']); ?>
+                                                </p>
+                                                <div class="flex items-center text-sm">
+                                                    <div class="flex items-center text-yellow-400">
+                                                        <?php 
+                                                        $rating = round($provider['avg_rating'] ?? 0, 1);
+                                                        for ($i = 1; $i <= 5; $i++): 
+                                                            if ($i <= $rating): ?>
+                                                                <i class="fas fa-star"></i>
+                                                            <?php else: ?>
+                                                                <i class="far fa-star"></i>
+                                                            <?php endif;
+                                                        endfor; ?>
+                                                    </div>
+                                                    <span class="text-gray-600 ml-2">
+                                                        (<?php echo number_format($provider['review_count'] ?? 0); ?> reviews)
+                                                    </span>
+                                                </div>
+                                            </div>
+                                        </div>
+                                        
+                                        <div class="mt-4 text-sm text-gray-600 line-clamp-3">
+                                            <?php echo htmlspecialchars($provider['description'] ?? 'No description provided.'); ?>
+                                        </div>
+                                    </div>
+                                    
+                                    <div class="bg-gray-50 px-6 py-3 border-t border-neutral-200">
+                                        <div class="flex justify-between items-center">
+                                            <a href="provider-profile.php?id=<?php echo $provider['id']; ?>" 
+                                               class="text-primary-600 hover:text-primary-700 font-medium text-sm">
+                                                View Profile
+                                                <i class="fas fa-arrow-right ml-1"></i>
+                                            </a>
+                                            <button onclick="removeFromFavorites(<?php echo $provider['id']; ?>)"
+                                                    class="text-red-600 hover:text-red-700 text-sm font-medium">
+                                                <i class="fas fa-heart-broken mr-1"></i>
+                                                Remove
+                                            </button>
+                                        </div>
+                                    </div>
+                                </div>
+                            <?php endforeach; ?>
+                        </div>
+                    <?php else: ?>
+                        <div class="bg-gray-50 border border-neutral-200 rounded-xl p-8 text-center">
+                            <div class="text-gray-400 mb-4">
+                                <i class="fas fa-heart text-4xl"></i>
+                            </div>
+                            <h4 class="text-gray-900 font-medium mb-2">No Favorite Providers</h4>
+                            <p class="text-gray-600 mb-6">You haven't added any service providers to your favorites yet.</p>
+                            <a href="services.php" class="inline-flex items-center justify-center px-4 py-2 bg-primary-600 text-white font-medium rounded-lg hover:bg-primary-700 transition-colors">
+                                <i class="fas fa-search mr-2"></i>
+                                Find Providers
+                            </a>
+                        </div>
+                    <?php endif; ?>
                 </div>
 
                 <!-- Settings Tab -->
                 <div id="settings-tab" class="tab-content hidden">
-                    <h3 class="text-lg font-semibold mb-6">Account Settings</h3>
+                    <div class="mb-6 flex items-center justify-between">
+                        <h3 class="text-lg font-semibold">Account Settings</h3>
+                        <div class="flex items-center space-x-2">
+                            <span class="text-sm text-gray-600">Status:</span>
+                            <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium <?php echo $currentUser['email_verified'] ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'; ?>">
+                                <?php echo $currentUser['email_verified'] ? 'Verified' : 'Unverified'; ?>
+                            </span>
+                        </div>
+                    </div>
                     
                     <div class="space-y-6">
                         <!-- Quick Actions -->

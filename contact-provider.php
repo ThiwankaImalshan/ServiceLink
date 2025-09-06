@@ -125,99 +125,99 @@ include 'includes/header.php';
 
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
       
-      <!-- Provider Information Card -->
+      <!-- Enhanced Provider Information Card Design -->
       <div class="lg:col-span-1">
-        <div class="bg-white rounded-2xl shadow-lg border border-neutral-200 overflow-hidden sticky top-8">
+        <div class="bg-white rounded-3xl shadow-xl border border-neutral-200 overflow-hidden sticky top-8">
           
           <!-- Provider Header -->
-          <div class="relative bg-gradient-to-br from-primary-500 to-secondary-500 p-6 text-white">
-            <div class="flex items-center space-x-4">
+          <div class="relative bg-gradient-to-br from-primary-500 to-secondary-500 p-8 text-white">
+            <div class="flex items-center space-x-6">
               <!-- Profile Photo -->
               <div class="relative">
-                <div class="w-16 h-16 rounded-xl overflow-hidden border-3 border-white shadow-lg">
+                <div class="w-20 h-20 rounded-2xl overflow-hidden border-4 border-white shadow-lg">
                   <img src="<?php echo e(ImageUploader::getProfileImageUrl($provider['profile_photo'])); ?>" 
                        alt="<?php echo e($provider['first_name'] . ' ' . $provider['last_name']); ?>" 
                        class="w-full h-full object-cover">
                 </div>
                 <?php if ($provider['is_verified']): ?>
-                <div class="absolute -bottom-1 -right-1 bg-green-500 rounded-lg p-1 border-2 border-white shadow-md">
+                <div class="absolute -bottom-1 -right-1 bg-green-500 rounded-full p-2 border-2 border-white shadow-md">
                   <i class="fa-solid fa-check text-white text-xs"></i>
                 </div>
                 <?php endif; ?>
               </div>
-              
+
               <!-- Provider Info -->
               <div class="flex-1">
-                <h3 class="text-xl font-bold text-white mb-1">
+                <h3 class="text-2xl font-bold text-white mb-1">
                   <?php echo e($provider['first_name'] . ' ' . $provider['last_name']); ?>
                 </h3>
                 <div class="flex items-center space-x-2 text-primary-100">
-                  <i class="<?php echo e($provider['category_icon']); ?> text-sm"></i>
-                  <span class="text-sm font-medium"><?php echo e($provider['category_name']); ?></span>
+                  <i class="<?php echo e($provider['category_icon']); ?> text-lg"></i>
+                  <span class="text-sm font-medium"> <?php echo e($provider['category_name']); ?></span>
                 </div>
               </div>
             </div>
           </div>
           
           <!-- Provider Details -->
-          <div class="p-6 space-y-4">
+          <div class="p-8 space-y-6">
             
             <!-- Business Name -->
             <?php if (!empty($provider['business_name'])): ?>
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                <i class="fa-solid fa-building text-primary-600 text-sm"></i>
+            <div class="flex items-center space-x-4">
+              <div class="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-building text-primary-600 text-lg"></i>
               </div>
               <div>
                 <p class="text-sm text-neutral-500">Business</p>
-                <p class="font-medium text-neutral-900"><?php echo e($provider['business_name']); ?></p>
+                <p class="font-semibold text-neutral-900"> <?php echo e($provider['business_name']); ?></p>
               </div>
             </div>
             <?php endif; ?>
             
             <!-- Location -->
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                <i class="fa-solid fa-location-dot text-primary-600 text-sm"></i>
+            <div class="flex items-center space-x-4">
+              <div class="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-location-dot text-primary-600 text-lg"></i>
               </div>
               <div>
                 <p class="text-sm text-neutral-500">Location</p>
-                <p class="font-medium text-neutral-900"><?php echo e($provider['location']); ?></p>
+                <p class="font-semibold text-neutral-900"> <?php echo e($provider['location']); ?></p>
               </div>
             </div>
             
             <!-- Experience -->
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-primary-100 rounded-lg flex items-center justify-center">
-                <i class="fa-solid fa-award text-primary-600 text-sm"></i>
+            <div class="flex items-center space-x-4">
+              <div class="w-10 h-10 bg-primary-100 rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-award text-primary-600 text-lg"></i>
               </div>
               <div>
                 <p class="text-sm text-neutral-500">Experience</p>
-                <p class="font-medium text-neutral-900"><?php echo $provider['experience_years']; ?>+ years</p>
+                <p class="font-semibold text-neutral-900"> <?php echo $provider['experience_years']; ?>+ years</p>
               </div>
             </div>
             
             <!-- Hourly Rate -->
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-secondary-100 rounded-lg flex items-center justify-center">
-                <i class="fa-solid fa-tag text-secondary-600 text-sm"></i>
+            <div class="flex items-center space-x-4">
+              <div class="w-10 h-10 bg-secondary-100 rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-tag text-secondary-600 text-lg"></i>
               </div>
               <div>
                 <p class="text-sm text-neutral-500">Rate</p>
-                <p class="font-medium text-neutral-900"><?php echo formatCurrency($provider['hourly_rate']); ?>/hr</p>
+                <p class="font-semibold text-neutral-900"> <?php echo formatCurrency($provider['hourly_rate']); ?>/hr</p>
               </div>
             </div>
             
             <!-- Rating -->
             <?php if ($provider['review_count'] > 0): ?>
-            <div class="flex items-center space-x-3">
-              <div class="w-8 h-8 bg-yellow-100 rounded-lg flex items-center justify-center">
-                <i class="fa-solid fa-star text-yellow-600 text-sm"></i>
+            <div class="flex items-center space-x-4">
+              <div class="w-10 h-10 bg-yellow-100 rounded-xl flex items-center justify-center">
+                <i class="fa-solid fa-star text-yellow-600 text-lg"></i>
               </div>
               <div>
                 <p class="text-sm text-neutral-500">Rating</p>
                 <div class="flex items-center space-x-2">
-                  <span class="font-medium text-neutral-900"><?php echo number_format($provider['rating'], 1); ?></span>
+                  <span class="font-semibold text-neutral-900"> <?php echo number_format($provider['rating'], 1); ?></span>
                   <span class="text-sm text-neutral-500">(<?php echo $provider['review_count']; ?> reviews)</span>
                 </div>
               </div>

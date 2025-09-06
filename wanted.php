@@ -1,8 +1,53 @@
 <?php
+// Load required files first
+require_once 'config/config.php';
+require_once 'config/database.php';
+require_once 'config/auth.php';
+require_once 'includes/functions.php';
+
+// Initialize database and auth
+$db = getDB();
+$auth = new Auth($db);
+$currentUser = $auth->getCurrentUser();
+
+// Handle new wanted ad submission first, before any output
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_wanted'])) {
+    if ($auth->isLoggedIn() && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $title = trim($_POST['title'] ?? '');
+        $description = trim($_POST['description'] ?? '');
+        $categoryId = (int)($_POST['category_id'] ?? 0);
+        $location = trim($_POST['location'] ?? '');
+        $budgetMin = !empty($_POST['budget_min']) ? (float)$_POST['budget_min'] : null;
+        $budgetMax = !empty($_POST['budget_max']) ? (float)$_POST['budget_max'] : null;
+        $urgency = $_POST['urgency'] ?? 'medium';
+        $contactMethod = $_POST['contact_method'] ?? 'both';
+        
+        if ($title && $description && $categoryId && $location) {
+            try {
+                $stmt = $db->prepare("
+                    INSERT INTO wanted_ads (user_id, category_id, title, description, location, budget_min, budget_max, urgency, contact_method) 
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                ");
+                $stmt->execute([$currentUser['id'], $categoryId, $title, $description, $location, $budgetMin, $budgetMax, $urgency, $contactMethod]);
+                
+                setFlashMessage('Your wanted ad has been posted successfully!', 'success');
+                redirect(BASE_URL . '/wanted.php');
+                exit;
+            } catch (PDOException $e) {
+                setFlashMessage('An error occurred while posting your ad.', 'error');
+            }
+        } else {
+            setFlashMessage('Please fill in all required fields.', 'error');
+        }
+    } else {
+        setFlashMessage('You must be logged in to post a wanted ad.', 'error');
+    }
+}
+
 $pageTitle = 'Wanted Ads • ServiceLink';
 $pageDescription = 'Post requests for services or browse what customers are looking for.';
 
-// Include header
+// Include header after all possible redirects
 include 'includes/header.php';
 
 // Get filter parameters
@@ -79,35 +124,9 @@ try {
     $categories = [];
 }
 
-// Handle new wanted ad submission
+// Handle new wanted ad errors (form will be re-displayed)
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_wanted'])) {
-    if ($auth->isLoggedIn() && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
-        $title = trim($_POST['title'] ?? '');
-        $description = trim($_POST['description'] ?? '');
-        $categoryId = (int)($_POST['category_id'] ?? 0);
-        $location = trim($_POST['location'] ?? '');
-        $budgetMin = !empty($_POST['budget_min']) ? (float)$_POST['budget_min'] : null;
-        $budgetMax = !empty($_POST['budget_max']) ? (float)$_POST['budget_max'] : null;
-        $urgency = $_POST['urgency'] ?? 'medium';
-        $contactMethod = $_POST['contact_method'] ?? 'both';
-        
-        if ($title && $description && $categoryId && $location) {
-            try {
-                $stmt = $db->prepare("
-                    INSERT INTO wanted_ads (user_id, category_id, title, description, location, budget_min, budget_max, urgency, contact_method) 
-                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([$currentUser['id'], $categoryId, $title, $description, $location, $budgetMin, $budgetMax, $urgency, $contactMethod]);
-                
-                setFlashMessage('Your wanted ad has been posted successfully!', 'success');
-                redirect(BASE_URL . '/wanted.php');
-            } catch (PDOException $e) {
-                setFlashMessage('An error occurred while posting your ad.', 'error');
-            }
-        } else {
-            setFlashMessage('Please fill in all required fields.', 'error');
-        }
-    } else {
+    if (!$auth->isLoggedIn() || !verifyCSRFToken($_POST['csrf_token'] ?? '')) {
         setFlashMessage('You must be logged in to post a wanted ad.', 'error');
     }
 }

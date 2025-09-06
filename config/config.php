@@ -11,7 +11,7 @@ define('DB_USER', 'root');
 define('DB_PASS', ''); // Update with your MySQL root password
 
 // Application settings
-define('BASE_URL', 'http://localhost/Service_Delivery_Web');
+define('BASE_URL', 'http://localhost/ServiceLink');
 define('SITE_NAME', 'ServiceLink');
 define('UPLOAD_PATH', __DIR__ . '/../uploads/');
 define('MAX_FILE_SIZE', 5242880); // 5MB

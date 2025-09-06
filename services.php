@@ -249,12 +249,12 @@ include 'includes/header.php';
   
   /* Button hover effects */
   button, .btn {
-    transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+    transition: none; /* Removed transition for hover effects */
   }
   
   button:hover, .btn:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+    transform: none; /* Removed hover transform */
+    box-shadow: none; /* Removed hover shadow */
   }
   
   /* Search bar pulse effect */
@@ -419,14 +419,14 @@ include 'includes/header.php';
           <?php echo $selectedCategoryName ? e($selectedCategoryName) : 'Browse Services'; ?>
         </h1>
         <p class="text-lg text-neutral-600">
-          Find the perfect professional for your needs • <?php echo $totalProviders; ?> provider<?php echo $totalProviders !== 1 ? 's' : ''; ?> found
+          Find the perfect professional for your needs, <?php echo $totalProviders; ?> provider<?php echo $totalProviders !== 1 ? 's' : ''; ?> found
         </p>
       </div>
 
       <!-- Search and Filters -->
       <div class="bg-white dark:bg-neutral-800 rounded-xl shadow-lg border border-neutral-200 dark:border-neutral-700 p-6 mb-8 filter-container">
         <!-- Search Bar -->
-        <form method="GET" action="" class="flex flex-col lg:flex-row gap-4 mb-6">
+        <div class="flex flex-col lg:flex-row gap-4 mb-6">
           <div class="flex-1 relative">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <i class="fa-solid fa-magnifying-glass text-neutral-400 dark:text-neutral-500"></i>
@@ -436,21 +436,21 @@ include 'includes/header.php';
                    placeholder="Search by name, service, or keyword..." />
           </div>
           <div class="flex gap-3">
-            <button type="submit" 
+            <button type="button" id="searchButton"
                     class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg transition-colors font-medium flex items-center space-x-2 shadow-lg hover:shadow-xl">
               <i class="fa-solid fa-search"></i>
               <span>Search</span>
             </button>
-            <a href="<?php echo BASE_URL; ?>/services.php" 
+            <button type="button" id="clearFilters"
                class="bg-neutral-100 dark:bg-neutral-700 text-neutral-700 dark:text-neutral-300 px-6 py-3 rounded-lg hover:bg-neutral-200 dark:hover:bg-neutral-600 transition-colors font-medium flex items-center space-x-2">
               <i class="fa-solid fa-rotate-left"></i>
               <span>Reset</span>
-            </a>
+            </button>
           </div>
-        </form>
+        </div>
 
         <!-- Filter Options -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 transition-all duration-300">
+  <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 transition-all duration-300">
           <!-- Category Filter -->
           <div class="transition-all duration-200">
             <label for="categorySelect" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Category</label>
@@ -498,6 +498,16 @@ include 'includes/header.php';
             <input type="text" id="locationInput" name="location" value="<?php echo e($location); ?>" placeholder="City or area"
                    class="block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-300 focus:shadow-lg" />
           </div>
+          <!-- Apply Filters Button in grid -->
+          <div class="flex items-end pt-2">
+            <button type="button" id="applyFilters" class="w-full bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg transition-colors font-medium flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl">
+              <i class="fa-solid fa-filter"></i>
+              <span>Apply Filters</span>
+            </button>
+          </div>
+        </div>
+        <!-- Manual Filter Button Row -->
+  <!-- Removed manual filter button row, now in grid above -->
         </div>
 
         <!-- Loading Indicator -->
@@ -513,7 +523,8 @@ include 'includes/header.php';
       </div>
 
       <!-- Results Layout -->
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
         <!-- Provider List -->
         <div class="lg:col-span-2">
           <div id="providersList" class="space-y-4">
@@ -792,6 +803,7 @@ include 'includes/header.php';
 
 <!-- Filter Form for JavaScript -->
 <form id="filterForm" method="GET" action="" style="display: none;">
+  <input type="hidden" name="search" id="hiddenSearch">
   <input type="hidden" name="category" id="hiddenCategory">
   <input type="hidden" name="location" id="hiddenLocation">
   <input type="hidden" name="min_price" id="hiddenMinPrice">
@@ -867,139 +879,73 @@ echo json_encode($mapData);
 <script>
 // Enhanced smooth filtering with transitions
 document.addEventListener('DOMContentLoaded', function() {
-  const filterInputs = ['categorySelect', 'locationInput', 'priceMin', 'priceMax', 'verifiedOnly', 'skilledOnly'];
-  const loadingIndicator = document.getElementById('loadingIndicator');
-  const searchInput = document.getElementById('searchInput');
-  const providersGrid = document.querySelector('.grid'); // Target the providers grid
-  
-  let filterTimeout;
-  let isFiltering = false;
-
-  // Function to show loading state
-  function showLoading() {
-    if (isFiltering) return;
-    isFiltering = true;
-    
-    // Show loading indicator with fade-in
-    if (loadingIndicator) {
-      loadingIndicator.classList.remove('hidden');
-      loadingIndicator.style.opacity = '0';
-      requestAnimationFrame(() => {
-        loadingIndicator.style.transition = 'opacity 0.3s ease-in-out';
-        loadingIndicator.style.opacity = '1';
-      });
+  // Pressing Escape key triggers clearFilters and refreshes results
+  document.addEventListener('keydown', function(e) {
+    if (e.key === 'Escape') {
+      clearFilters();
+      applyFilters();
     }
-
-    // Add blur effect to content while loading
-    if (providersGrid) {
-      providersGrid.style.transition = 'filter 0.3s ease-in-out, opacity 0.3s ease-in-out';
-      providersGrid.style.filter = 'blur(2px)';
-      providersGrid.style.opacity = '0.7';
-    }
-  }
-
-  // Function to hide loading state
-  function hideLoading() {
-    setTimeout(() => {
-      // Hide loading indicator with fade-out
-      if (loadingIndicator) {
-        loadingIndicator.style.opacity = '0';
-        setTimeout(() => {
-          loadingIndicator.classList.add('hidden');
-          isFiltering = false;
-        }, 300);
-      }
-
-      // Remove blur effect
-      if (providersGrid) {
-        providersGrid.style.filter = 'none';
-        providersGrid.style.opacity = '1';
-      }
-    }, 800); // Minimum loading time for smooth UX
-  }
-
-  // Enhanced filter application with smooth transitions
-  function applyFiltersWithTransition() {
-    clearTimeout(filterTimeout);
-    filterTimeout = setTimeout(() => {
-      showLoading();
-      
-      // Add fade-out effect before form submission
-      document.body.style.transition = 'opacity 0.2s ease-in-out';
-      document.body.style.opacity = '0.95';
-      
-      setTimeout(() => {
+  });
+  // Pressing Enter in searchInput triggers search
+  var searchInput = document.getElementById('searchInput');
+  if (searchInput) {
+    searchInput.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
         applyFilters();
-      }, 200);
-    }, 300); // Debounce for 300ms
+      }
+    });
   }
-
-  // Original filter function with enhancements
-  function applyFilters() {
-    const form = document.getElementById('filterForm');
-    
+  // Search button functionality
+  var searchBtn = document.getElementById('searchButton');
+  if (searchBtn) {
+    searchBtn.addEventListener('click', function() {
+      applyFilters();
+    });
+  }
+  // Only trigger filter on button click
+  function setHiddenFilterFields() {
+    document.getElementById('hiddenSearch').value = document.getElementById('searchInput').value;
     document.getElementById('hiddenCategory').value = document.getElementById('categorySelect').value;
     document.getElementById('hiddenLocation').value = document.getElementById('locationInput').value;
     document.getElementById('hiddenMinPrice').value = document.getElementById('priceMin').value;
     document.getElementById('hiddenMaxPrice').value = document.getElementById('priceMax').value;
     document.getElementById('hiddenVerified').value = document.getElementById('verifiedOnly').checked ? '1' : '';
     document.getElementById('hiddenRating').value = document.getElementById('skilledOnly').checked ? '4' : '';
-    
-    form.submit();
   }
 
-  // Add enhanced event listeners to filter inputs
-  filterInputs.forEach(inputId => {
-    const element = document.getElementById(inputId);
-    if (element) {
-      // Add smooth transition classes
-      element.style.transition = 'all 0.3s ease-in-out';
-      
-      // Enhanced change events
-      element.addEventListener('change', function() {
-        // Add visual feedback for interaction
-        if (element.type === 'checkbox') {
-          this.style.transform = 'scale(1.2)';
-          setTimeout(() => {
-            this.style.transform = 'scale(1)';
-          }, 150);
-        } else {
-          this.style.transform = 'scale(1.02)';
-          this.style.boxShadow = '0 0 0 3px rgba(59, 130, 246, 0.1)';
-          setTimeout(() => {
-            this.style.transform = 'scale(1)';
-            this.style.boxShadow = 'none';
-          }, 200);
-        }
-        applyFiltersWithTransition();
-      });
+  function applyFilters() {
+    setHiddenFilterFields();
+    document.getElementById('filterForm').submit();
+  }
 
-      // Add input events for text/number inputs
-      if (element.type === 'text' || element.type === 'number') {
-        element.addEventListener('input', function() {
-          // Add typing feedback
-          this.style.transform = 'scale(1.02)';
-          setTimeout(() => {
-            this.style.transform = 'scale(1)';
-          }, 150);
-          applyFiltersWithTransition();
-        });
-      }
-    }
-  });
+  function clearFilters() {
+  document.getElementById('searchInput').value = '';
+  document.getElementById('categorySelect').value = '';
+  document.getElementById('locationInput').value = '';
+  document.getElementById('priceMin').value = '';
+  document.getElementById('priceMax').value = '';
+  document.getElementById('verifiedOnly').checked = false;
+  document.getElementById('skilledOnly').checked = false;
+  document.getElementById('hiddenSearch').value = '';
+  setHiddenFilterFields();
+  document.getElementById('filterForm').submit();
+  }
 
-  // Add search input handling
-  if (searchInput) {
-    searchInput.style.transition = 'all 0.3s ease-in-out';
-    searchInput.addEventListener('input', function() {
-      // Add visual feedback for typing
-      this.style.transform = 'scale(1.02)';
-      setTimeout(() => {
-        this.style.transform = 'scale(1)';
-      }, 150);
-      applyFiltersWithTransition();
+  // Apply Filters button
+  var applyBtn = document.getElementById('applyFilters');
+  if (applyBtn) {
+    applyBtn.addEventListener('click', function() {
+      applyFilters();
     });
   }
+
+  // Clear Filters button
+  document.getElementById('clearFilters').addEventListener('click', function() {
+    clearFilters();
+  });
+
+  // No auto search input event. Only filter on button click.
 
   // Add staggered animation for provider cards on page load
   function animateProviderCards() {
@@ -1038,7 +984,7 @@ document.addEventListener('DOMContentLoaded', function() {
   requestAnimationFrame(() => {
     document.body.style.opacity = '1';
     // Run card animation after page loads
-    setTimeout(animateProviderCards, 100);
+    // setTimeout(animateProviderCards, 100);
     
     // Initialize the map
     initializeProvidersMap();

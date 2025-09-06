@@ -19,10 +19,10 @@ $currentPage = getCurrentPage();
   <title><?php echo e($pageTitle ?? 'ServiceLink'); ?></title>
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet" />
-    <link rel="apple-touch-icon" sizes="180x180" href="../assets/img/favicon_io/apple-touch-icon.png">
-    <link rel="icon" type="image/png" sizes="32x32" href="../assets/img/favicon_io/favicon-32x32.png">
-    <link rel="icon" type="image/png" sizes="16x16" href="../assets/img/favicon_io/favicon-16x16.png">
-    <link rel="manifest" href="../assets/img/favicon_io/site.webmanifest">
+    <link rel="apple-touch-icon" sizes="180x180" href="<?php echo BASE_URL; ?>/assets/img/favicon_io/apple-touch-icon.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="<?php echo BASE_URL; ?>/assets/img/favicon_io/favicon-32x32.png">
+    <link rel="icon" type="image/png" sizes="16x16" href="<?php echo BASE_URL; ?>/assets/img/favicon_io/favicon-16x16.png">
+    <link rel="manifest" href="<?php echo BASE_URL; ?>/assets/img/favicon_io/site.webmanifest">
   <script src="https://cdn.tailwindcss.com"></script>
   <script>
     tailwind.config = {
@@ -200,10 +200,10 @@ $currentPage = getCurrentPage();
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
       <div class="flex items-center justify-between h-16">
         <!-- Logo -->
-        <a href="<?php echo BASE_URL; ?>/index.php" class="flex items-center space-x-2 text-xl font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
+        <a href="index.php" class="flex items-center space-x-2 text-xl font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
           <!-- <div class="bg-primary-100 dark:bg-primary-900 p-2 rounded-lg shadow-glow"> -->
             <div class="p-2 rounded-lg shadow-glow">
-            <img src="<?php echo BASE_URL; ?>/assets/img/logo.png" alt="ServiceLink Logo" class="h-6 w-6 object-contain" />
+            <img src="assets/img/logo.png" alt="ServiceLink Logo" class="h-6 w-6 object-contain" />
           </div>
           <span>ServiceLink</span>
         </a>

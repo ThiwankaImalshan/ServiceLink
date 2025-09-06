@@ -106,137 +106,91 @@ $tags = json_decode($provider['tags'], true) ?: [];
       </div>
 
       <!-- Profile Header -->
-      <div class="bg-white rounded-2xl shadow-xl border border-neutral-200 p-8 mb-8">
-        <div class="flex flex-col lg:flex-row items-start lg:items-center space-y-6 lg:space-y-0 lg:space-x-8">
+      <div class="bg-white rounded-2xl shadow-xl border border-neutral-200 p-4 sm:p-6 lg:p-8 mb-8">
+        <div class="flex flex-col md:flex-row items-center md:items-start space-y-6 md:space-y-0 md:space-x-8">
           <!-- Profile Photo Section -->
-          <div class="relative flex-shrink-0">
-            <div class="relative">
+          <div class="relative flex-shrink-0 w-full md:w-auto flex justify-center md:block">
+            <div class="relative w-fit mx-auto md:mx-0">
               <img src="<?php echo e(ImageUploader::getProfileImageUrl($provider['profile_photo'])); ?>" 
                    alt="<?php echo e($provider['first_name'] . ' ' . $provider['last_name']); ?>" 
-                   class="w-32 h-32 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-primary-100" />
+                   class="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-primary-100" />
               
               <!-- Provider Badge -->
-              <div class="absolute -top-2 -left-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
+              <!-- <div class="absolute -top-2 -left-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
                 <i class="fa-solid fa-briefcase mr-1"></i>Provider
-              </div>
+              </div> -->
               
               <!-- Verification Badge -->
-              <?php if (isset($provider['is_verified']) && $provider['is_verified']): ?>
-              <div class="absolute bottom-2 right-2 bg-gradient-to-r from-green-400 to-green-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
-                <i class="fa-solid fa-shield-check text-sm"></i>
-              </div>
-              <?php endif; ?>
+                <?php if ($providerVerificationStatus === 'verified'): ?>
+                <div class="absolute bottom-2 right-2 bg-gradient-to-r from-green-400 to-green-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
+                  <i class="fa-solid fa-shield-halved text-sm"></i>
+                </div>
+                <?php endif; ?>
             </div>
           </div>
 
-          <!-- Profile Info -->
+          <!-- Profile Info and Stats -->
           <div class="flex-1 min-w-0">
-            <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between mb-4">
-              <div>
-                <h1 class="text-3xl lg:text-4xl font-bold text-neutral-900 mb-2">
+            <div class="flex flex-col md:block w-full space-y-6 md:space-y-0 mb-4">
+              <div class="flex flex-col items-center md:items-start w-full md:max-w-none text-center md:text-left">
+                <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 mb-4">
                   <?php echo e($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>
                 </h1>
-                <div class="flex items-center space-x-4 text-neutral-600 mb-4">
-                  <span class="flex items-center space-x-2 bg-primary-100 px-3 py-1 rounded-lg">
-                    <i class="<?php echo e($provider['category_icon']); ?> text-primary-600"></i>
-                    <span><?php echo e($provider['category_name']); ?></span>
-                  </span>
+                <!-- Added Provider Badge to Info Section -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-3 text-neutral-600 text-sm sm:text-base mb-6">
                   <span class="flex items-center space-x-2">
                     <i class="fa-solid fa-location-dot text-primary-500"></i>
                     <span><?php echo e($provider['location']); ?></span>
                   </span>
-                  <?php if (!empty($provider['gender'])): ?>
                   <span class="flex items-center space-x-2">
                     <i class="fa-solid fa-user text-primary-500"></i>
-                    <span><?php echo ucfirst(str_replace('_', ' ', $provider['gender'])); ?></span>
+                    <span>
+                      <?php 
+                      $gender = $provider['gender'] ?? null; // Check if 'gender' key exists
+                      echo $gender ? ucfirst(str_replace('_', ' ', $gender)) : 'Not specified'; // Provide default value if null
+                      ?>
+                    </span>
                   </span>
-                  <?php endif; ?>
-                </div>
-                
-                <!-- Verification Badges -->
-                <div class="flex items-center space-x-3 mb-4">
-                  <?php
-                  $idVerified = ($providerVerificationStatus['id_verification_status'] ?? '') === 'verified';
-                  $linkedinVerified = ($providerVerificationStatus['linkedin_verification_status'] ?? '') === 'verified';
-                  ?>
-                  
-                  <?php if ($idVerified): ?>
-                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800 border border-green-200">
-                    <i class="fa-solid fa-id-card mr-1"></i>
-                    ID Verified
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg">
+                    <i class="fa-solid fa-briefcase mr-1"></i>Provider
                   </span>
-                  <?php endif; ?>
-                  
-                  <?php if ($linkedinVerified): ?>
-                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800 border border-blue-200">
-                    <i class="fa-brands fa-linkedin mr-1"></i>
-                    LinkedIn Verified
-                  </span>
-                  <?php endif; ?>
-                  
-                  <?php if ($idVerified && $linkedinVerified): ?>
-                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800 border border-purple-200">
-                    <i class="fa-solid fa-shield-check mr-1"></i>
-                    Fully Verified
-                  </span>
-                  <?php endif; ?>
-                  
-                  <?php if (!$idVerified && !$linkedinVerified): ?>
-                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-neutral-100 text-neutral-600 border border-neutral-200">
-                    <i class="fa-solid fa-exclamation-triangle mr-1"></i>
-                    Unverified
-                  </span>
-                  <?php endif; ?>
                 </div>
               </div>
-              
-              <!-- Action Buttons -->
-              <div class="flex items-center space-x-3">
-                <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
-                <!-- Favorite Button -->
-                <button id="favoriteBtn" 
-                        data-provider-id="<?php echo $providerId; ?>"
-                        data-is-favorite="<?php echo $isFavorite ? 'true' : 'false'; ?>"
-                        class="<?php echo $isFavorite ? 'bg-red-100 text-red-600 border-red-200' : 'bg-neutral-100 text-neutral-600 border-neutral-200'; ?> border px-4 py-2 rounded-lg hover:opacity-80 transition-all font-medium flex items-center space-x-2">
-                  <i class="<?php echo $isFavorite ? 'fa-solid fa-heart' : 'fa-regular fa-heart'; ?>"></i>
-                  <span><?php echo $isFavorite ? 'Favorited' : 'Add to Favorites'; ?></span>
-                </button>
-                <?php endif; ?>
-                
-                <!-- Contact Button -->
-                <a href="#contact" class="bg-primary-600 text-white px-6 py-2 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center space-x-2 shadow-lg">
-                  <i class="fa-solid fa-envelope"></i>
-                  <span>Contact Provider</span>
-                </a>
-              </div>
-            </div>
-              
-              <?php if ($currentUser && $currentUser['id'] != $provider['user_id']): ?>
-              <a href="<?php echo BASE_URL; ?>/contact-provider.php?id=<?php echo $provider['id']; ?>" 
-                 class="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center space-x-2 shadow-lg">
-                <i class="fa-solid fa-envelope"></i>
-                <span>Contact Provider</span>
-              </a>
-              <?php endif; ?>
-            </div>
 
-            <!-- Provider Stats -->
-            <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              <div class="bg-gradient-to-r from-blue-50 to-primary-50 p-4 rounded-xl border border-blue-100">
-                <div class="text-2xl font-bold text-primary-700"><?php echo $provider['experience_years']; ?>+</div>
-                <div class="text-sm text-primary-600">Years Experience</div>
-              </div>
-              <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
-                <div class="text-2xl font-bold text-amber-700"><?php echo number_format($provider['rating'], 1); ?></div>
-                <div class="text-sm text-amber-600">Average Rating</div>
-              </div>
-              <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-                <div class="text-2xl font-bold text-emerald-700"><?php echo $provider['review_count']; ?></div>
-                <div class="text-sm text-emerald-600">Total Reviews</div>
-              </div>
-              <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
-                <div class="text-2xl font-bold text-purple-700"><?php echo formatCurrency($provider['hourly_rate']); ?></div>
-                <div class="text-sm text-purple-600">Hourly Rate</div>
+              <!-- Provider Stats -->
+              <div class="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3 sm:gap-4 w-full">
+                <div class="bg-gradient-to-r from-blue-50 to-primary-50 p-4 rounded-xl border border-blue-100 hover:shadow-lg transition-shadow duration-300">
+                  <div class="text-center">
+                    <div class="text-2xl sm:text-3xl font-bold text-primary-700 mb-1">
+                      <?php echo $provider['experience_years']; ?>+
+                    </div>
+                    <div class="text-sm text-primary-600 font-medium">Years Experience</div>
+                  </div>
+                </div>
+                <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100 hover:shadow-lg transition-shadow duration-300">
+                  <div class="text-center">
+                    <div class="text-2xl sm:text-3xl font-bold text-emerald-700 mb-1">
+                      <?php echo $provider['review_count']; ?>
+                    </div>
+                    <div class="text-sm text-emerald-600 font-medium">Total Reviews</div>
+                  </div>
+                </div>
+                <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100 hover:shadow-lg transition-shadow duration-300">
+                  <div class="text-center">
+                    <div class="text-2xl sm:text-3xl font-bold text-amber-700 mb-1">
+                      <?php echo number_format($provider['rating'], 1); ?>
+                    </div>
+                    <div class="text-sm text-amber-600 font-medium">Average Rating</div>
+                  </div>
+                </div>
+                <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100 hover:shadow-lg transition-shadow duration-300">
+                  <div class="text-center">
+                    <div class="text-2xl sm:text-3xl font-bold text-purple-700 mb-1">
+                      <?php echo formatCurrency($provider['hourly_rate']); ?>
+                    </div>
+                    <div class="text-sm text-purple-600 font-medium">Hourly Rate</div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -245,27 +199,27 @@ $tags = json_decode($provider['tags'], true) ?: [];
 
       <!-- Tab Navigation -->
       <div class="bg-white rounded-2xl shadow-lg border border-neutral-200 mb-8">
-        <div class="border-b border-neutral-200">
-          <nav class="flex flex-wrap sm:flex-nowrap gap-2 sm:gap-8 px-4 sm:px-6 overflow-x-auto" aria-label="Tabs">
-            <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-3 sm:py-4 px-2 sm:px-1 text-xs sm:text-sm font-medium whitespace-nowrap flex-shrink-0" data-tab="overview">
-              <i class="fa-solid fa-circle-info mr-1 sm:mr-2"></i>
-              <span class="hidden sm:inline">Overview</span>
-              <span class="sm:hidden">Info</span>
-            </button>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-3 sm:py-4 px-2 sm:px-1 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0" data-tab="reviews">
-              <i class="fa-solid fa-star mr-1 sm:mr-2"></i>
-              <span>Reviews</span>
-            </button>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-3 sm:py-4 px-2 sm:px-1 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0" data-tab="qualifications">
-              <i class="fa-solid fa-certificate mr-1 sm:mr-2"></i>
-              <span class="hidden sm:inline">Qualifications</span>
-              <span class="sm:hidden">Certs</span>
-            </button>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-3 sm:py-4 px-2 sm:px-1 text-xs sm:text-sm font-medium transition-colors whitespace-nowrap flex-shrink-0" data-tab="contact">
-              <i class="fa-solid fa-phone mr-1 sm:mr-2"></i>
-              <span>Contact</span>
-            </button>
-          </nav>
+        <div class="border-b border-neutral-200 overflow-x-auto scrollbar-hide">
+          <div class="max-w-7xl mx-auto">
+            <nav class="flex flex-nowrap justify-start md:justify-center min-w-full px-2 sm:px-4" aria-label="Tabs">
+              <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="overview">
+                <i class="fa-solid fa-chart-line text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+                <span class="text-xs sm:text-sm">Overview</span>
+              </button>
+              <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="reviews">
+                <i class="fa-solid fa-star text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+                <span class="text-xs sm:text-sm">Reviews</span>
+              </button>
+              <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="qualifications">
+                <i class="fa-solid fa-certificate text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+                <span class="text-xs sm:text-sm">Qualifications</span>
+              </button>
+              <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="contact">
+                <i class="fa-solid fa-phone text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+                <span class="text-xs sm:text-sm">Contact</span>
+              </button>
+            </nav>
+          </div>
         </div>
 
         <!-- Tab Content -->
@@ -309,39 +263,33 @@ $tags = json_decode($provider['tags'], true) ?: [];
                   Service Details
                 </h3>
                 <div class="space-y-4">
-                  <div class="bg-gradient-to-r from-blue-50 to-indigo-50 p-4 rounded-xl border border-blue-100">
+                  <!-- Status -->
+                    <div class="p-4 rounded-xl border <?php echo (!empty($provider['is_active']) && $provider['is_active'] == 1) ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-100' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-100'; ?>">
                     <div class="flex justify-between items-center">
-                      <span class="text-sm font-medium text-blue-700">Hourly Rate</span>
-                      <span class="text-lg font-bold text-blue-800"><?php echo formatCurrency($provider['hourly_rate']); ?></span>
+                    <span class="text-sm font-medium <?php echo (!empty($provider['is_active']) && $provider['is_active'] == 1) ? 'text-green-700' : 'text-amber-700'; ?>">Status</span>
+                    <?php if (!empty($provider['is_active']) && $provider['is_active'] == 1): ?>
+                    <span class="text-lg font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full">Available</span>
+                    <?php else: ?>
+                    <span class="text-lg font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">Not Available</span>
+                    <?php endif; ?>
                     </div>
-                  </div>
-                  <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-                    <div class="flex justify-between items-center">
-                      <span class="text-sm font-medium text-green-700">Experience</span>
-                      <span class="text-lg font-bold text-green-800"><?php echo $provider['experience_years']; ?>+ years</span>
                     </div>
-                  </div>
-                  <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
-                    <div class="flex justify-between items-center">
-                      <span class="text-sm font-medium text-amber-700">Status</span>
-                      <span class="text-lg font-bold text-amber-800"><?php echo isset($provider['is_available']) && $provider['is_available'] ? 'Available' : 'Active'; ?></span>
-                    </div>
-                  </div>
                   
                   <!-- Working Days -->
                   <?php if (!empty($workingDays)): ?>
                   <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
-                    <span class="text-sm font-medium text-purple-700 block mb-2">Working Days</span>
-                    <div class="flex flex-wrap gap-1">
-                      <?php 
-                      $dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                      foreach ($dayNames as $i => $day): 
-                      ?>
-                      <span class="px-2 py-1 text-xs rounded <?php echo in_array($i, $workingDays) ? 'bg-purple-200 text-purple-800' : 'bg-neutral-200 text-neutral-600'; ?>">
-                        <?php echo $day; ?>
-                      </span>
-                      <?php endforeach; ?>
-                    </div>
+                  <span class="text-sm font-medium text-purple-700 block mb-2">Working Days</span>
+                  <div class="flex flex-wrap gap-1">
+                    <?php 
+                    $dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                    foreach ($dayNames as $day): 
+                    $isActive = in_array($day, $workingDays); // Check if the day is in the workingDays array
+                    ?>
+                    <span class="px-2 py-1 text-xs rounded <?php echo $isActive ? 'bg-purple-500 text-white font-semibold shadow' : 'bg-neutral-200 text-neutral-600'; ?>">
+                    <?php echo $day; ?>
+                    </span>
+                    <?php endforeach; ?>
+                  </div>
                   </div>
                   <?php endif; ?>
                 </div>
