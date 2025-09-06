@@ -282,7 +282,7 @@ include 'includes/header.php';
           </div>
           <h3 class="text-2xl font-bold text-neutral-700 dark:text-neutral-200 mb-2">Advertise Your Service</h3>
           <p class="text-neutral-600 dark:text-neutral-300 mb-6">Reach thousands of potential customers in your area and grow your service with ServiceLink</p>
-          <a href="<?php echo BASE_URL; ?>/my-service.php" class="inline-flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600 text-white px-6 py-3 rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-glow transform hover:scale-105">
+          <a href="<?php echo BASE_URL; ?>/login.php" class="inline-flex items-center space-x-2 bg-primary-600 hover:bg-primary-700 dark:bg-primary-700 dark:hover:bg-primary-600 text-white px-6 py-3 rounded-xl transition-all duration-300 font-semibold shadow-lg hover:shadow-glow transform hover:scale-105">
             <span>Get Started</span>
             <i class="fa-solid fa-arrow-right"></i>
           </a>

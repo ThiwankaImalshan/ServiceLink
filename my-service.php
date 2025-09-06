@@ -57,7 +57,14 @@ if ($isEditing) {
 }
 
 // Handle form submission
-if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    
+    // Debug CSRF token.
+    if (!verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        setFlashMessage('Invalid CSRF token. Please try again.', 'error');
+        error_log('CSRF token mismatch: ' . ($_POST['csrf_token'] ?? 'missing'));
+        redirect(BASE_URL . '/my-service.php');
+    }
     
     // Handle profile photo upload
     if (isset($_POST['upload_photo']) && isset($_FILES['profile_photo'])) {
@@ -133,14 +140,81 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
     $isVerified = 0; // Admin verification required
     $isSkilled = $hasQualifications ? 1 : 0; // Auto-set based on qualifications
     
-    // Basic validation
-    if (!$categoryId || !$location || !$hourlyRate || !$experienceYears) {
-        setFlashMessage('Please fill in all required fields.', 'error');
-    } elseif ($hourlyRate < 1 || $hourlyRate > 999) {
-        setFlashMessage('Hourly rate must be between Rs. 1 and Rs. 999.', 'error');
-    } elseif ($experienceYears < 0 || $experienceYears > 50) {
-        setFlashMessage('Experience years must be between 0 and 50.', 'error');
-    } else {
+    // Debug incoming data
+    error_log("Form Data Received: " . print_r($_POST, true));
+    
+    // Comprehensive validation
+    $validationErrors = [];
+    
+    // Required fields validation
+    $requiredFields = [
+        'business_name' => 'Business name',
+        'category_id' => 'Service category',
+        'location' => 'Location',
+        'hourly_rate' => 'Hourly rate',
+        'experience_years' => 'Years of experience'
+    ];
+    
+    foreach ($requiredFields as $field => $label) {
+        $value = trim($_POST[$field] ?? '');
+        if (empty($value)) {
+            $validationErrors[] = $label . ' is required.';
+            error_log("Validation failed: {$label} is empty");
+        }
+    }
+    
+    // Numeric validations
+    if (!empty($_POST['hourly_rate']) && (!is_numeric($_POST['hourly_rate']) || $_POST['hourly_rate'] <= 0)) {
+        $validationErrors[] = 'Hourly rate must be a positive number.';
+        error_log("Validation failed: Invalid hourly rate: " . $_POST['hourly_rate']);
+    }
+    
+    if (!empty($_POST['experience_years']) && (!is_numeric($_POST['experience_years']) || $_POST['experience_years'] < 0)) {
+        $validationErrors[] = 'Experience years must be a non-negative number.';
+        error_log("Validation failed: Invalid experience years: " . $_POST['experience_years']);
+    }
+    
+    // Working days validation
+    if (!empty($_POST['working_days']) && !is_array($_POST['working_days'])) {
+        $validationErrors[] = 'Working days must be selected properly.';
+        error_log("Validation failed: Working days is not an array");
+    }
+    
+    // Time format validation
+    if (!empty($_POST['working_hours_start']) && !preg_match('/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/', $_POST['working_hours_start'])) {
+        $validationErrors[] = 'Invalid working hours start time format.';
+        error_log("Validation failed: Invalid working hours start: " . $_POST['working_hours_start']);
+    }
+    
+    if (!empty($_POST['working_hours_end']) && !preg_match('/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/', $_POST['working_hours_end'])) {
+        $validationErrors[] = 'Invalid working hours end time format.';
+        error_log("Validation failed: Invalid working hours end: " . $_POST['working_hours_end']);
+    }
+    if (!isset($_POST['hourly_rate']) || $_POST['hourly_rate'] < 1 || $_POST['hourly_rate'] > 999) {
+        $validationErrors[] = 'Hourly rate must be between Rs. 1 and Rs. 999.';
+    }
+    if (!isset($_POST['experience_years']) || $_POST['experience_years'] < 0 || $_POST['experience_years'] > 50) {
+        $validationErrors[] = 'Experience years must be between 0 and 50.';
+    }
+
+    if (!empty($validationErrors)) {
+        error_log("Validation errors found: " . implode(", ", $validationErrors));
+        foreach ($validationErrors as $error) {
+            setFlashMessage($error, 'error');
+        }
+        redirect(BASE_URL . '/my-service.php');
+        exit; // Ensure script stops here if validation fails
+    }
+    
+    // Log validated data
+    error_log("Validation passed. Proceeding with data:");
+    error_log("Business Name: $businessName");
+    error_log("Category ID: $categoryId");
+    error_log("Location: $location");
+    error_log("Hourly Rate: $hourlyRate");
+    error_log("Experience Years: $experienceYears");
+    
+
         // Validate qualifications if provided
         $qualificationErrors = [];
         if (isset($_POST['qualifications']) && is_array($_POST['qualifications'])) {
@@ -210,19 +284,88 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 setFlashMessage('Your service profile has been updated successfully!', 'success');
             } else {
                 // Create new provider
-                $stmt = $db->prepare("
-                    INSERT INTO providers (
-                        user_id, category_id, business_name, location, latitude, longitude, 
-                        hourly_rate, experience_years, description, working_days, working_hours_start, 
-                        working_hours_end, best_call_time, tags, profile_photo, is_active, is_verified, is_skilled
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                ");
-                $stmt->execute([
-                    $currentUser['id'], $categoryId, $businessName, $location, $latitude, $longitude, 
-                    $hourlyRate, $experienceYears, $description, json_encode($workingDays), 
-                    $workingHoursStart, $workingHoursEnd, $bestCallTime, json_encode($tags), 
-                    $profilePhotoPath, $isActive, $isVerified, $isSkilled
-                ]);
+                try {
+                    // Ensure all required data is present
+                    if (!$currentUser['id']) {
+                        throw new Exception("User ID is missing");
+                    }
+                    
+                    // Format and validate all data before insert
+                    $insertData = [
+                        'user_id' => $currentUser['id'],
+                        'category_id' => $categoryId,
+                        'business_name' => $businessName,
+                        'location' => $location,
+                        'latitude' => $latitude,
+                        'longitude' => $longitude,
+                        'hourly_rate' => $hourlyRate,
+                        'experience_years' => $experienceYears,
+                        'working_days' => is_array($workingDays) ? json_encode($workingDays) : null,
+                        'working_hours_start' => $workingHoursStart ?: null,
+                        'working_hours_end' => $workingHoursEnd ?: null,
+                        'best_call_time' => $bestCallTime ?: null,
+                        'description' => $description ?: null,
+                        'profile_photo' => $profilePhotoPath ?: null,
+                        'tags' => !empty($tags) ? json_encode($tags) : null,
+                        'is_active' => $isActive,
+                        'is_verified' => $isVerified,
+                        'is_skilled' => $isSkilled
+                    ];
+                    
+                    // Debug log before insert
+                    error_log("Attempting to insert new provider with data: " . print_r($insertData, true));
+                    
+                    $stmt = $db->prepare("
+                        INSERT INTO providers (
+                            user_id, category_id, business_name, location, latitude, longitude, 
+                            hourly_rate, experience_years, description, working_days, working_hours_start, 
+                            working_hours_end, best_call_time, tags, profile_photo, is_active, is_verified, is_skilled
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    ");
+                    
+                    // Prepare the data array for better error tracking
+                    $insertData = [
+                        $currentUser['id'], 
+                        $categoryId, 
+                        $businessName, 
+                        $location, 
+                        $latitude, 
+                        $longitude, 
+                        $hourlyRate, 
+                        $experienceYears, 
+                        $description, 
+                        json_encode($workingDays), 
+                        $workingHoursStart, 
+                        $workingHoursEnd, 
+                        $bestCallTime, 
+                        json_encode($tags), 
+                        $profilePhotoPath, 
+                        $isActive, 
+                        $isVerified, 
+                        $isSkilled
+                    ];
+                    
+                    // Execute with error handling
+                    if (!$stmt->execute($insertData)) {
+                        $errorInfo = $stmt->errorInfo();
+                        error_log("SQL Error: " . print_r($errorInfo, true));
+                        throw new Exception("Database error: " . $errorInfo[2]);
+                    }
+                    
+                    // Log successful insertion
+                    error_log("Successfully inserted new provider with ID: " . $db->lastInsertId());
+                    
+                    // Set success message and redirect to profile page
+                    setFlashMessage('Your service profile has been created successfully! You can now manage your services.', 'success');
+                    redirect(BASE_URL . '/provider-profile.php');
+                    exit;
+                    
+                } catch (Exception $e) {
+                    error_log("Exception during provider insertion: " . $e->getMessage());
+                    setFlashMessage('Error creating provider profile: ' . $e->getMessage(), 'error');
+                    redirect(BASE_URL . '/my-service.php');
+                    exit;
+                }
                 
                 // Update user role to provider
                 $stmt = $db->prepare("UPDATE users SET role = 'provider', profile_photo = ? WHERE id = ?");
@@ -230,7 +373,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
                 $_SESSION['role'] = 'provider';
                 $currentUser['profile_photo'] = $profilePhotoPath;
                 
-                setFlashMessage('Your service profile has been created successfully!', 'success');
+                // Set success message and redirect
+                setFlashMessage('Your service profile has been created successfully! Redirecting to your profile...', 'success');
+                // Short delay to ensure the message is displayed
+                header("Refresh: 2; URL=" . BASE_URL . '/provider-profile.php');
+                exit();
             }
             
             // Handle qualifications processing
@@ -271,10 +418,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && verifyCSRFToken($_POST['csrf_token'
             
         } catch (PDOException $e) {
             setFlashMessage('An error occurred while saving your profile.', 'error');
+        } catch (Exception $e) {
+            setFlashMessage('An unexpected error occurred. Please try again later.', 'error');
+            error_log('Form submission error: ' . $e->getMessage());
+            redirect(BASE_URL . '/my-service.php');
         }
         }
     }
-}
+
 
 # Parse current provider data for form
 $formData = [
@@ -324,62 +475,6 @@ include 'includes/header.php';
         <?php echo $isEditing ? 'Update your service information and reach more customers.' : 'Join our platform and connect with customers who need your skills and expertise.'; ?>
       </p>
     </div>
-
-    <?php if ($isEditing): ?>
-    <!-- Current Provider Info -->
-    <div class="bg-white rounded-2xl shadow-xl border border-neutral-200 p-8 mb-8">
-      <div class="flex flex-col lg:flex-row items-start lg:items-center space-y-6 lg:space-y-0 lg:space-x-8">
-        <div class="relative flex-shrink-0">
-          <img src="<?php echo e(ImageUploader::getProfileImageUrl($currentUser['profile_photo'])); ?>" 
-               alt="Profile" 
-               class="w-24 h-24 lg:w-32 lg:h-32 rounded-full object-cover border-4 border-white shadow-lg ring-4 ring-primary-100">
-        </div>
-        
-        <div class="flex-1 min-w-0">
-          <h3 class="text-2xl lg:text-3xl font-bold text-neutral-900 mb-2">
-            <?php echo e($formData['business_name'] ?: ($currentUser['first_name'] . ' ' . $currentUser['last_name'])); ?>
-          </h3>
-          <div class="flex items-center space-x-4 text-neutral-600 mb-4">
-            <span class="flex items-center space-x-2 bg-primary-100 px-3 py-1 rounded-lg">
-              <i class="fa-solid fa-briefcase text-primary-600"></i>
-              <span><?php echo e($currentProvider['category_name']); ?></span>
-            </span>
-            <span class="flex items-center space-x-2">
-              <i class="fa-solid fa-location-dot text-primary-500"></i>
-              <span><?php echo e($formData['location']); ?></span>
-            </span>
-          </div>
-          
-          <div class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-4">
-            <div class="bg-gradient-to-r from-blue-50 to-primary-50 p-4 rounded-xl border border-blue-100">
-              <div class="text-2xl font-bold text-primary-700"><?php echo formatCurrency($formData['hourly_rate']); ?></div>
-              <div class="text-sm text-primary-600">Per Hour</div>
-            </div>
-            <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100">
-              <div class="text-2xl font-bold text-emerald-700"><?php echo $formData['experience_years']; ?></div>
-              <div class="text-sm text-emerald-600">Years Experience</div>
-            </div>
-            <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100">
-              <div class="text-2xl font-bold text-amber-700"><?php echo number_format($currentProvider['rating'] ?? 0, 1); ?></div>
-              <div class="text-sm text-amber-600">Rating</div>
-            </div>
-            <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
-              <div class="text-2xl font-bold text-purple-700"><?php echo $currentProvider['review_count'] ?? 0; ?></div>
-              <div class="text-sm text-purple-600">Reviews</div>
-            </div>
-          </div>
-        </div>
-        
-        <div class="flex flex-col sm:flex-row lg:flex-col space-y-3 sm:space-y-0 sm:space-x-3 lg:space-x-0 lg:space-y-3">
-          <a href="<?php echo BASE_URL; ?>/provider-profile.php?id=<?php echo $currentProvider['id']; ?>" 
-             class="bg-primary-600 text-white px-6 py-3 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center space-x-2 shadow-lg">
-            <i class="fa-solid fa-eye"></i>
-            <span>View Public Profile</span>
-          </a>
-        </div>
-      </div>
-    </div>
-    <?php endif; ?>
 
     <!-- Main Layout: Left Content + Right Form -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-12 items-start">
@@ -1271,57 +1366,57 @@ function setLocation(lat, lng) {
   }
 }
 
-function reverseGeocode(lat, lng) {
-  console.log('Attempting reverse geocode for:', lat, lng);
-  
-  fetch(`https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`, {
-    headers: {
-      'User-Agent': 'ServiceDeliveryWebApp/1.0 (Contact: admin@example.com)'
+// Move reverse geocoding to server-side to avoid CORS issues.
+
+// Reverse Geocoding Function
+async function reverseGeocode(lat, lng) {
+    try {
+        // Make a server-side request to handle reverse geocoding
+        const response = await fetch(`reverse-geocode.php?lat=${lat}&lng=${lng}`);
+
+        if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.includes('application/json')) {
+            throw new Error('Invalid JSON response from server');
+        }
+
+        const data = await response.json();
+        console.log('Reverse geocoding result:', data);
+        return data;
+    } catch (error) {
+        console.error('Reverse geocoding error:', error);
+        alert('Failed to fetch location details. Please try again later.');
+        return null;
     }
-  })
-    .then(response => {
-      console.log('Reverse geocode response status:', response.status);
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      return response.json();
-    })
-    .then(data => {
-      console.log('Reverse geocode data:', data);
-      const addressElement = document.getElementById('selected-address');
-      
-      if (data && data.display_name && addressElement) {
-        addressElement.textContent = data.display_name;
-      } else if (addressElement) {
-        addressElement.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      }
-    })
-    .catch(error => {
-      console.error('Reverse geocoding error:', error);
-      const addressElement = document.getElementById('selected-address');
-      if (addressElement) {
-        addressElement.textContent = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-      }
-    });
 }
 
-function clearLocationData() {
-  // Clear form inputs
-  const latInput = document.getElementById('latitude');
-  const lngInput = document.getElementById('longitude');
-  const selectedLocation = document.getElementById('selected-location');
-  
-  if (latInput) latInput.value = '';
-  if (lngInput) lngInput.value = '';
-  if (selectedLocation) selectedLocation.classList.add('hidden');
-  
-  // Remove marker from map
-  if (window.marker && window.map) {
-    window.map.removeLayer(window.marker);
-    window.marker = null;
-  }
-  
-  console.log('Location data cleared');
+// Map Click Event
+function onMapClick(event) {
+    const { lat, lng } = event.latlng;
+    console.log('Map clicked at:', lat, lng);
+
+    // Update `currentLocation`
+    currentLocation = { lat, lng };
+    console.log('Location set successfully:', currentLocation.lat, currentLocation.lng);
+
+    // Attempt reverse geocoding
+    reverseGeocode(currentLocation.lat, currentLocation.lng)
+        .then((data) => {
+            if (data) {
+                console.log('Reverse geocoding data:', data);
+            }
+        });
+}
+
+// Ensure `currentLocation` is defined globally to avoid ReferenceError.
+let currentLocation = null;
+
+// Attach Map Click Event Listener
+if (window.map) {
+    window.map.on('click', onMapClick);
 }
 
 // Qualifications Management
@@ -1537,89 +1632,22 @@ function renumberQualifications() {
   });
 }
 
-// Handle form submission
+// Listen for flash message from PHP (success)
 document.addEventListener('DOMContentLoaded', function() {
-  // Initialize qualifications system
-  initializeQualifications();
-  
-  const form = document.getElementById('providerForm');
-  if (form) {
-    form.addEventListener('submit', function(e) {
-      e.preventDefault();
-      
-      const formData = new FormData(this);
-      
-      // Add location data if available
-      if (currentLocation) {
-        formData.append('latitude', currentLocation.lat);
-        formData.append('longitude', currentLocation.lng);
-        formData.append('location_address', currentLocation.address || '');
-      }
-      
-      // Add photo data if available
-      if (uploadedPhotoFile) {
-        formData.append('profile_photo', uploadedPhotoFile);
-      }
-      
-      // Validate and collect qualification data
-      const qualificationEntries = document.querySelectorAll('.qualification-entry');
-      let qualificationsValid = true;
-      
-      qualificationEntries.forEach((entry, index) => {
-        const titleInput = entry.querySelector('input[name*="[title]"]');
-        const instituteInput = entry.querySelector('input[name*="[institute]"]');
-        
-        if (titleInput && titleInput.value.trim() === '') {
-          showAlert('Please fill in all required qualification fields', 'error');
-          titleInput.focus();
-          qualificationsValid = false;
-          return false;
-        }
-        
-        if (instituteInput && instituteInput.value.trim() === '') {
-          showAlert('Please fill in all required qualification fields', 'error');
-          instituteInput.focus();
-          qualificationsValid = false;
-          return false;
-        }
-      });
-      
-      if (!qualificationsValid) {
-        return;
-      }
-      
-      // Show loading state
-      const submitButton = this.querySelector('button[type="submit"]');
-      const originalText = submitButton.innerHTML;
-      submitButton.disabled = true;
-      submitButton.innerHTML = '<i class="fa-solid fa-spinner fa-spin mr-2"></i>Saving...';
-      
-      fetch('my-service.php', {
-        method: 'POST',
-        body: formData
-      })
-      .then(response => response.json())
-      .then(data => {
-        if (data.success) {
-          showAlert('Profile updated successfully!', 'success');
-          if (data.redirect) {
-            setTimeout(() => {
-              window.location.href = data.redirect;
-            }, 1000);
-          }
-        } else {
-          showAlert(data.message || 'Error updating profile', 'error');
-        }
-      })
-      .catch(error => {
-        console.error('Error:', error);
-        showAlert('Network error occurred', 'error');
-      })
-      .finally(() => {
-        submitButton.disabled = false;
-        submitButton.innerHTML = originalText;
-      });
-    });
+  const flashSuccess = document.querySelector('.flash-message.success');
+  if (flashSuccess) {
+    showAlert(flashSuccess.textContent, 'success');
+    // Clear all form fields
+    const form = document.getElementById('providerForm');
+    if (form) {
+      form.reset();
+      // If you use custom fields (e.g. select2, custom file inputs), clear them here
+      // Example: $("#yourSelect").val(null).trigger('change');
+    }
+    // Redirect after 2 seconds
+    setTimeout(function() {
+      window.location.href = 'provider-profile.php';
+    }, 2000);
   }
 });
 
@@ -1640,19 +1668,17 @@ function showAlert(message, type = 'info') {
         'fa-info-circle'
       } mr-2"></i>
       <span>${message}</span>
-      <button onclick="this.parentElement.parentElement.remove()" class="ml-auto text-lg">&times;</button>
     </div>
   `;
-  
+
   document.body.appendChild(alertDiv);
-  
-  // Auto remove after 5 seconds
+
   setTimeout(() => {
-    if (alertDiv.parentElement) {
-      alertDiv.remove();
-    }
-  }, 5000);
+    alertDiv.remove();
+  }, 3000);
 }
+
+// Ensure all JavaScript blocks are properly closed
 </script>
 
 <?php include 'includes/footer.php'; ?>

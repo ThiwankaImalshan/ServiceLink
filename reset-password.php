@@ -336,6 +336,24 @@ include 'includes/header_simple.php';
             </button>
           </form>
 
+          <!-- Resend Section -->
+          <div class="border-t border-neutral-200 pt-6">
+            <div class="text-center space-y-4">
+              <p class="text-sm text-neutral-600">
+                Didn't receive the code?
+              </p>
+              
+              <form method="POST" action="" class="inline">
+                <input type="hidden" name="csrf_token" value="<?php echo generateCSRFToken(); ?>">
+                <button type="submit" name="resend_otp" 
+                        class="text-purple-600 hover:text-purple-700 font-medium text-sm border border-purple-200 hover:border-purple-300 px-4 py-2 rounded-lg transition-colors">
+                  <i class="fa-solid fa-paper-plane mr-1"></i>
+                  Resend Code
+                </button>
+              </form>
+            </div>
+          </div>
+
           <?php else: ?>
           <!-- Password Reset Form -->
           <form method="POST" action="" class="space-y-6" id="passwordForm">
@@ -412,12 +430,8 @@ if (otpInput) {
     
     e.target.value = value;
     
-    // Auto-submit when 6 digits are entered
-    if (value.length === 6) {
-      setTimeout(() => {
-        e.target.form.submit();
-      }, 500);
-    }
+    // AUTO-SUBMIT FUNCTIONALITY REMOVED
+    // User must manually click the verify button
   });
 
   // Focus on OTP input when page loads
@@ -432,11 +446,8 @@ if (otpInput) {
     let digits = paste.replace(/\D/g, '').substring(0, 6);
     this.value = digits;
     
-    if (digits.length === 6) {
-      setTimeout(() => {
-        this.form.submit();
-      }, 500);
-    }
+    // AUTO-SUBMIT FUNCTIONALITY REMOVED
+    // User must manually click the verify button
   });
 }
 
