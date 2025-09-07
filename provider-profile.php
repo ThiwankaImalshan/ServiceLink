@@ -25,12 +25,13 @@ if (!$providerId) {
 // Get provider details
 try {
     $stmt = $db->prepare("
-        SELECT p.*, u.first_name, u.last_name, u.email, u.phone, u.profile_photo,
+        SELECT p.*, u.first_name, u.last_name, u.email, u.phone, u.profile_photo, u.email_verified,
+               u.id_verification_status, u.linkedin_profile, u.linkedin_verification_status, u.created_at as user_created_at,
                c.name as category_name, c.icon as category_icon, c.slug as category_slug
         FROM providers p 
         JOIN users u ON p.user_id = u.id 
         JOIN categories c ON p.category_id = c.id 
-        WHERE p.id = ? AND p.is_active = 1
+        WHERE p.id = ?
     ");
     $stmt->execute([$providerId]);
     $provider = $stmt->fetch();
@@ -111,21 +112,29 @@ $tags = json_decode($provider['tags'], true) ?: [];
           <!-- Profile Photo Section -->
           <div class="relative flex-shrink-0 w-full md:w-auto flex justify-center md:block">
             <div class="relative w-fit mx-auto md:mx-0">
-              <img src="<?php echo e(ImageUploader::getProfileImageUrl($provider['profile_photo'])); ?>" 
+                <?php
+                  $photoPath = str_replace('\\', '/', $provider['profile_photo']);
+                  if (empty($photoPath)) {
+                    $imgSrc = BASE_URL . '/assets/img/default-avatar.png';
+                  } else if (filter_var($photoPath, FILTER_VALIDATE_URL)) {
+                    $imgSrc = $photoPath;
+                  } else {
+                    $imgSrc = BASE_URL . '/serve-upload.php?p=' . rawurlencode(ltrim($photoPath, '/'));
+                  }
+                ?>
+                <img src="<?php echo $imgSrc; ?>"
                    alt="<?php echo e($provider['first_name'] . ' ' . $provider['last_name']); ?>" 
                    class="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-primary-100" />
               
-              <!-- Provider Badge -->
-              <!-- <div class="absolute -top-2 -left-2 bg-gradient-to-r from-emerald-500 to-green-600 text-white px-3 py-1 rounded-full text-xs font-bold shadow-lg">
-                <i class="fa-solid fa-briefcase mr-1"></i>Provider
-              </div> -->
-              
-              <!-- Verification Badge -->
-                <?php if ($providerVerificationStatus === 'verified'): ?>
-                <div class="absolute bottom-2 right-2 bg-gradient-to-r from-green-400 to-green-600 text-white p-2 rounded-full shadow-lg border-2 border-white">
-                  <i class="fa-solid fa-shield-halved text-sm"></i>
+              <!-- Verified Badge -->
+              <?php if ($provider['is_verified']): ?>
+                <div class="absolute bottom-2 right-2 sm:bottom-2 sm:right-2 md:bottom-2 md:right-2 lg:bottom-2 lg:right-2" style="right:0.25rem; bottom:0.25rem; z-index:2;">
+                  <div class="flex items-center justify-center w-10 h-10 rounded-full bg-gradient-to-br from-green-500 via-emerald-400 to-green-700 shadow-lg border-2 border-white ring-2 ring-green-300"
+                       style="position:relative;">
+                    <i class="fa-solid fa-certificate text-white text-xl drop-shadow" title="Verified Provider"></i>
+                  </div>
                 </div>
-                <?php endif; ?>
+              <?php endif; ?>
             </div>
           </div>
 
@@ -133,27 +142,96 @@ $tags = json_decode($provider['tags'], true) ?: [];
           <div class="flex-1 min-w-0">
             <div class="flex flex-col md:block w-full space-y-6 md:space-y-0 mb-4">
               <div class="flex flex-col items-center md:items-start w-full md:max-w-none text-center md:text-left">
-                <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 mb-4">
+                <h1 class="text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 mb-2">
                   <?php echo e($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>
                 </h1>
-                <!-- Added Provider Badge to Info Section -->
-                <div class="flex flex-wrap items-center justify-center md:justify-start gap-3 text-neutral-600 text-sm sm:text-base mb-6">
+                
+                <!-- Category and Location -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-3 text-neutral-600 text-sm sm:text-base mb-4">
+                  <span class="flex items-center space-x-2">
+                    <i class="<?php echo e($provider['category_icon']); ?> text-primary-500"></i>
+                    <span><?php echo e($provider['category_name']); ?></span>
+                  </span>
                   <span class="flex items-center space-x-2">
                     <i class="fa-solid fa-location-dot text-primary-500"></i>
                     <span><?php echo e($provider['location']); ?></span>
                   </span>
-                  <span class="flex items-center space-x-2">
-                    <i class="fa-solid fa-user text-primary-500"></i>
-                    <span>
-                      <?php 
-                      $gender = $provider['gender'] ?? null; // Check if 'gender' key exists
-                      echo $gender ? ucfirst(str_replace('_', ' ', $gender)) : 'Not specified'; // Provide default value if null
-                      ?>
+                    <span class="flex items-center space-x-2">
+                    <i class="fa-solid fa-user-clock text-primary-500"></i>
+                    <span>Since&nbsp;<?php echo date('M Y', strtotime($provider['user_created_at'])); ?></span>
                     </span>
-                  </span>
+                </div>
+
+                <!-- Status Badges -->
+                <div class="flex flex-wrap items-center justify-center md:justify-start gap-2 mb-4">
+                  <!-- Provider Badge -->
                   <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-gradient-to-r from-emerald-500 to-green-600 text-white shadow-lg">
                     <i class="fa-solid fa-briefcase mr-1"></i>Provider
                   </span>
+                  
+                  <!-- Active Status -->
+                  <?php if ($provider['is_active']): ?>
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    <i class="fa-solid fa-circle text-green-500 mr-1"></i>Active
+                  </span>
+                  <?php else: ?>
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                    <i class="fa-solid fa-circle text-red-500 mr-1"></i>Inactive
+                  </span>
+                  <?php endif; ?>
+                  
+                  <!-- Verification Badges -->
+                  <?php if ($provider['id_verification_status'] === 'approved'): ?>
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                    <i class="fa-solid fa-id-card mr-1"></i>ID Verified
+                  </span>
+                  <?php endif; ?>
+                  
+                  <?php if ($provider['linkedin_verification_status'] === 'verified'): ?>
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-purple-100 text-purple-800">
+                    <i class="fa-brands fa-linkedin mr-1"></i>LinkedIn Verified
+                  </span>
+                  <?php endif; ?>
+                  
+                  <?php if ($provider['email_verified']): ?>
+                  <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-cyan-100 text-cyan-800">
+                    <i class="fa-solid fa-envelope-circle-check mr-1"></i>Email Verified
+                  </span>
+                  <?php endif; ?>
+                </div>
+
+                <!-- LinkedIn Profile Link -->
+                <?php if (!empty($provider['linkedin_profile'])): ?>
+                <div class="mb-4">
+                  <a href="<?php echo e($provider['linkedin_profile']); ?>" target="_blank" 
+                     class="inline-flex items-center text-blue-600 hover:text-blue-800 font-medium transition-colors">
+                    <i class="fa-brands fa-linkedin mr-2"></i>
+                    View LinkedIn Profile
+                    <i class="fa-solid fa-external-link-alt ml-1 text-xs"></i>
+                  </a>
+                </div>
+                <?php endif; ?>
+
+                <!-- Rating Display -->
+                <div class="flex items-center justify-center md:justify-start mb-4">
+                  <div class="flex items-center space-x-1">
+                    <?php 
+                    $rating = floatval($provider['rating']);
+                    for ($i = 1; $i <= 5; $i++): 
+                    ?>
+                      <?php if ($i <= $rating): ?>
+                        <i class="fa-solid fa-star text-yellow-400"></i>
+                      <?php elseif ($i - 0.5 <= $rating): ?>
+                        <i class="fa-solid fa-star-half-stroke text-yellow-400"></i>
+                      <?php else: ?>
+                        <i class="fa-regular fa-star text-gray-300"></i>
+                      <?php endif; ?>
+                    <?php endfor; ?>
+                    <span class="ml-2 text-sm text-gray-600">
+                      <?php echo number_format($rating, 1); ?> 
+                      (<?php echo $provider['review_count']; ?> <?php echo $provider['review_count'] == 1 ? 'review' : 'reviews'; ?>)
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -201,24 +279,24 @@ $tags = json_decode($provider['tags'], true) ?: [];
       <div class="bg-white rounded-2xl shadow-lg border border-neutral-200 mb-8">
         <div class="border-b border-neutral-200 overflow-x-auto scrollbar-hide">
           <div class="max-w-7xl mx-auto">
-            <nav class="flex flex-nowrap justify-start md:justify-center min-w-full px-2 sm:px-4" aria-label="Tabs">
-              <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="overview">
-                <i class="fa-solid fa-chart-line text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
-                <span class="text-xs sm:text-sm">Overview</span>
-              </button>
-              <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="reviews">
-                <i class="fa-solid fa-star text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
-                <span class="text-xs sm:text-sm">Reviews</span>
-              </button>
-              <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="qualifications">
-                <i class="fa-solid fa-certificate text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
-                <span class="text-xs sm:text-sm">Qualifications</span>
-              </button>
-              <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="contact">
-                <i class="fa-solid fa-phone text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
-                <span class="text-xs sm:text-sm">Contact</span>
-              </button>
-            </nav>
+        <nav class="flex flex-nowrap justify-start min-w-full px-2 sm:px-4" aria-label="Tabs">
+          <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="overview">
+            <i class="fa-solid fa-chart-line text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+            <span class="text-xs sm:text-sm">Overview</span>
+          </button>
+          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="reviews">
+            <i class="fa-solid fa-star text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+            <span class="text-xs sm:text-sm">Reviews</span>
+          </button>
+          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="qualifications">
+            <i class="fa-solid fa-certificate text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+            <span class="text-xs sm:text-sm">Qualifications</span>
+          </button>
+          <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="contact">
+            <i class="fa-solid fa-phone text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
+            <span class="text-xs sm:text-sm">Contact</span>
+          </button>
+        </nav>
           </div>
         </div>
 
@@ -256,7 +334,7 @@ $tags = json_decode($provider['tags'], true) ?: [];
                 <?php endif; ?>
               </div>
 
-              <!-- Details -->
+              <!-- Service Details -->
               <div>
                 <h3 class="text-lg font-semibold text-neutral-900 mb-4 flex items-center">
                   <i class="fa-solid fa-circle-info text-primary-600 mr-2"></i>
@@ -264,32 +342,73 @@ $tags = json_decode($provider['tags'], true) ?: [];
                 </h3>
                 <div class="space-y-4">
                   <!-- Status -->
-                    <div class="p-4 rounded-xl border <?php echo (!empty($provider['is_active']) && $provider['is_active'] == 1) ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-100' : 'bg-gradient-to-r from-amber-50 to-yellow-50 border-amber-100'; ?>">
+                  <div class="p-4 rounded-xl border <?php echo $provider['is_active'] ? 'bg-gradient-to-r from-green-50 to-emerald-50 border-green-100' : 'bg-gradient-to-r from-red-50 to-pink-50 border-red-100'; ?>">
                     <div class="flex justify-between items-center">
-                    <span class="text-sm font-medium <?php echo (!empty($provider['is_active']) && $provider['is_active'] == 1) ? 'text-green-700' : 'text-amber-700'; ?>">Status</span>
-                    <?php if (!empty($provider['is_active']) && $provider['is_active'] == 1): ?>
-                    <span class="text-lg font-bold text-green-700 bg-green-100 px-3 py-1 rounded-full">Available</span>
-                    <?php else: ?>
-                    <span class="text-lg font-bold text-amber-800 bg-amber-100 px-3 py-1 rounded-full">Not Available</span>
-                    <?php endif; ?>
+                      <span class="text-sm font-medium <?php echo $provider['is_active'] ? 'text-green-700' : 'text-red-700'; ?>">Status</span>
+                      <span class="text-lg font-bold <?php echo $provider['is_active'] ? 'text-green-700 bg-green-100' : 'text-red-700 bg-red-100'; ?> px-3 py-1 rounded-full">
+                        <?php echo $provider['is_active'] ? 'Available' : 'Not Available'; ?>
+                      </span>
                     </div>
-                    </div>
+                  </div>
                   
                   <!-- Working Days -->
                   <?php if (!empty($workingDays)): ?>
                   <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100">
-                  <span class="text-sm font-medium text-purple-700 block mb-2">Working Days</span>
-                  <div class="flex flex-wrap gap-1">
-                    <?php 
-                    $dayNames = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
-                    foreach ($dayNames as $day): 
-                    $isActive = in_array($day, $workingDays); // Check if the day is in the workingDays array
-                    ?>
-                    <span class="px-2 py-1 text-xs rounded <?php echo $isActive ? 'bg-purple-500 text-white font-semibold shadow' : 'bg-neutral-200 text-neutral-600'; ?>">
-                    <?php echo $day; ?>
-                    </span>
-                    <?php endforeach; ?>
+                    <span class="text-sm font-medium text-purple-700 block mb-2">Working Days</span>
+                    <div class="flex flex-wrap gap-1">
+                      <?php 
+                      $dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                      $shortDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                      foreach ($shortDays as $i => $day): 
+                        $isActive = in_array($dayNames[$i], $workingDays) || in_array($day, $workingDays);
+                      ?>
+                      <span class="px-2 py-1 text-xs rounded <?php echo $isActive ? 'bg-purple-500 text-white font-semibold shadow' : 'bg-neutral-200 text-neutral-600'; ?>">
+                        <?php echo $day; ?>
+                      </span>
+                      <?php endforeach; ?>
+                    </div>
                   </div>
+                  <?php endif; ?>
+                  
+                  <!-- Working Hours -->
+                  <?php if ($provider['working_hours_start'] && $provider['working_hours_end']): ?>
+                  <div class="bg-gradient-to-r from-amber-50 to-orange-50 p-4 rounded-xl border border-amber-100">
+                    <div class="flex justify-between items-center">
+                      <span class="text-sm font-medium text-amber-700">Working Hours</span>
+                      <span class="text-sm font-bold text-amber-900">
+                        <?php echo date('g:i A', strtotime($provider['working_hours_start'])); ?> - 
+                        <?php echo date('g:i A', strtotime($provider['working_hours_end'])); ?>
+                      </span>
+                    </div>
+                  </div>
+                  <?php endif; ?>
+                  
+                  <!-- Best Call Time -->
+                  <?php if (!empty($provider['best_call_time'])): ?>
+                  <div class="bg-gradient-to-r from-cyan-50 to-blue-50 p-4 rounded-xl border border-cyan-100">
+                    <div class="flex justify-between items-center">
+                      <span class="text-sm font-medium text-cyan-700">Best Call Time</span>
+                      <span class="text-sm font-bold text-cyan-900"><?php echo e($provider['best_call_time']); ?></span>
+                    </div>
+                  </div>
+                  <?php endif; ?>
+                  
+                  <!-- Location with Map -->
+                  <?php if ($provider['latitude'] && $provider['longitude']): ?>
+                  <div class="bg-gradient-to-r from-indigo-50 to-purple-50 p-4 rounded-xl border border-indigo-100">
+                    <span class="text-sm font-medium text-indigo-700 block mb-3">Service Location</span>
+                    <div class="flex items-center justify-between mb-3">
+                      <span class="text-sm text-indigo-900"><?php echo e($provider['location']); ?></span>
+                      <a href="https://www.google.com/maps?q=<?php echo $provider['latitude']; ?>,<?php echo $provider['longitude']; ?>" 
+                         target="_blank" 
+                         class="inline-flex items-center px-3 py-1 bg-indigo-100 text-indigo-700 rounded-full text-xs font-medium hover:bg-indigo-200 transition-colors">
+                        <i class="fa-solid fa-map-location-dot mr-1"></i>
+                        View on Map
+                      </a>
+                    </div>
+                    <!-- <div class="text-xs text-indigo-600">
+                      Coordinates: <?php echo $provider['latitude']; ?>, <?php echo $provider['longitude']; ?>
+                    </div> -->
                   </div>
                   <?php endif; ?>
                 </div>
@@ -395,45 +514,140 @@ $tags = json_decode($provider['tags'], true) ?: [];
                   <i class="fa-solid fa-address-card text-primary-600 mr-2"></i>
                   Contact Details
                 </h4>
-                <div class="space-y-3">
+                <div class="space-y-4">
                   <div class="flex items-center space-x-3">
                     <i class="fa-solid fa-envelope text-neutral-400 w-5"></i>
                     <span class="text-neutral-600"><?php echo e($provider['email']); ?></span>
                   </div>
+                  
                   <?php if (!empty($provider['phone'])): ?>
                   <div class="flex items-center space-x-3">
                     <i class="fa-solid fa-phone text-neutral-400 w-5"></i>
                     <span class="text-neutral-600"><?php echo e($provider['phone']); ?></span>
                   </div>
                   <?php endif; ?>
-                  <div class="flex items-center space-x-3">
-                    <i class="fa-solid fa-location-dot text-neutral-400 w-5"></i>
+                  
+                  <div class="flex items-start space-x-3">
+                    <i class="fa-solid fa-location-dot text-neutral-400 w-5 mt-1"></i>
                     <span class="text-neutral-600"><?php echo e($provider['location']); ?></span>
                   </div>
+                  
+                  <?php if (!empty($provider['linkedin_profile'])): ?>
+                  <div class="flex items-center space-x-3">
+                    <i class="fa-brands fa-linkedin text-neutral-400 w-5"></i>
+                    <a href="<?php echo e($provider['linkedin_profile']); ?>" target="_blank" 
+                       class="text-blue-600 hover:text-blue-800 transition-colors">
+                      LinkedIn Profile
+                      <i class="fa-solid fa-external-link-alt ml-1 text-xs"></i>
+                    </a>
+                  </div>
+                  <?php endif; ?>
+                  
+                  <?php if (!empty($provider['best_call_time'])): ?>
+                  <div class="flex items-center space-x-3">
+                    <i class="fa-solid fa-clock text-neutral-400 w-5"></i>
+                    <div>
+                      <span class="text-neutral-600">Best time to call: </span>
+                      <span class="font-medium text-neutral-900"><?php echo e($provider['best_call_time']); ?></span>
+                    </div>
+                  </div>
+                  <?php endif; ?>
                 </div>
+                
+                <!-- Service Area Map -->
+                <?php if ($provider['latitude'] && $provider['longitude']): ?>
+                <div class="mt-6 pt-6 border-t border-neutral-200">
+                  <h5 class="text-sm font-semibold text-neutral-900 mb-3">Service Area</h5>
+                  <div class="bg-gray-100 rounded-lg p-4 text-center">
+                    <iframe
+                      width="100%"
+                      height="200"
+                      frameborder="0"
+                      scrolling="no"
+                      marginheight="0"
+                      marginwidth="0"
+                      class="rounded-lg"
+                      src="https://www.openstreetmap.org/export/embed.html?bbox=<?php echo ($provider['longitude']-0.01); ?>%2C<?php echo ($provider['latitude']-0.01); ?>%2C<?php echo ($provider['longitude']+0.01); ?>%2C<?php echo ($provider['latitude']+0.01); ?>&amp;layer=mapnik&amp;marker=<?php echo $provider['latitude']; ?>%2C<?php echo $provider['longitude']; ?>">
+                    </iframe>
+                    <div style="display:none;" class="text-gray-500 py-8">
+                      <i class="fa-solid fa-map-location-dot text-2xl mb-2 block"></i>
+                      Map unavailable
+                    </div>
+                  </div>
+                </div>
+                <?php endif; ?>
               </div>
               
-              <div class="bg-neutral-50 rounded-xl p-6">
-                <h4 class="text-md font-semibold text-neutral-900 mb-4 flex items-center">
-                  <i class="fa-solid fa-handshake text-primary-600 mr-2"></i>
-                  Get in Touch
-                </h4>
-                <?php if ($currentUser && $currentUser['id'] != $provider['user_id']): ?>
-                <div class="space-y-3">
-                  <a href="<?php echo BASE_URL; ?>/contact-provider.php?id=<?php echo $provider['id']; ?>" 
-                     class="w-full bg-primary-600 text-white px-4 py-3 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-envelope"></i>
-                    <span>Send Message</span>
-                  </a>
-                  <a href="tel:<?php echo e($provider['phone']); ?>" 
-                     class="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center space-x-2">
-                    <i class="fa-solid fa-phone"></i>
-                    <span>Call Now</span>
-                  </a>
+              <div class="space-y-6">
+                <!-- Get in Touch -->
+                <div class="bg-neutral-50 rounded-xl p-6">
+                  <h4 class="text-md font-semibold text-neutral-900 mb-4 flex items-center">
+                    <i class="fa-solid fa-handshake text-primary-600 mr-2"></i>
+                    Get in Touch
+                  </h4>
+                  <?php if ($currentUser && $currentUser['id'] != $provider['user_id']): ?>
+                  <div class="space-y-3">
+                    <a href="<?php echo BASE_URL; ?>/contact-provider.php?id=<?php echo $provider['id']; ?>" 
+                       class="w-full bg-primary-600 text-white px-4 py-3 rounded-lg hover:bg-primary-700 transition-colors font-medium flex items-center justify-center space-x-2">
+                      <i class="fa-solid fa-envelope"></i>
+                      <span>Send Message</span>
+                    </a>
+                    <?php if (!empty($provider['phone'])): ?>
+                    <a href="tel:<?php echo e($provider['phone']); ?>" 
+                       class="w-full bg-green-600 text-white px-4 py-3 rounded-lg hover:bg-green-700 transition-colors font-medium flex items-center justify-center space-x-2">
+                      <i class="fa-solid fa-phone"></i>
+                      <span>Call Now</span>
+                    </a>
+                    <?php endif; ?>
+                  </div>
+                  <?php else: ?>
+                  <p class="text-neutral-500 italic">Please log in to contact this provider.</p>
+                  <?php endif; ?>
                 </div>
-                <?php else: ?>
-                <p class="text-neutral-500 italic">Please log in to contact this provider.</p>
-                <?php endif; ?>
+                
+                <!-- Business Hours -->
+                <div class="bg-neutral-50 rounded-xl p-6">
+                  <h4 class="text-md font-semibold text-neutral-900 mb-4 flex items-center">
+                    <i class="fa-solid fa-clock text-primary-600 mr-2"></i>
+                    Availability
+                  </h4>
+                  <div class="space-y-3">
+                    <?php if ($provider['working_hours_start'] && $provider['working_hours_end']): ?>
+                    <div class="flex justify-between items-center">
+                      <span class="text-neutral-600">Working Hours:</span>
+                      <span class="font-medium text-neutral-900">
+                        <?php echo date('g:i A', strtotime($provider['working_hours_start'])); ?> - 
+                        <?php echo date('g:i A', strtotime($provider['working_hours_end'])); ?>
+                      </span>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <?php if (!empty($workingDays)): ?>
+                    <div>
+                      <span class="text-neutral-600 block mb-2">Working Days:</span>
+                      <div class="flex flex-wrap gap-1">
+                        <?php 
+                        $dayNames = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'];
+                        $shortDays = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+                        foreach ($shortDays as $i => $day): 
+                          $isActive = in_array($dayNames[$i], $workingDays) || in_array($day, $workingDays);
+                        ?>
+                        <span class="px-2 py-1 text-xs rounded <?php echo $isActive ? 'bg-primary-500 text-white font-semibold' : 'bg-neutral-200 text-neutral-600'; ?>">
+                          <?php echo $day; ?>
+                        </span>
+                        <?php endforeach; ?>
+                      </div>
+                    </div>
+                    <?php endif; ?>
+                    
+                    <div class="flex justify-between items-center">
+                      <span class="text-neutral-600">Status:</span>
+                      <span class="font-medium <?php echo $provider['is_active'] ? 'text-green-600' : 'text-red-600'; ?>">
+                        <?php echo $provider['is_active'] ? 'Currently Available' : 'Currently Unavailable'; ?>
+                      </span>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           </div>

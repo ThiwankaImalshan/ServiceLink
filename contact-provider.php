@@ -62,8 +62,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $contactMethod = $_POST['contact_method'] ?? 'email';
     $csrfToken = $_POST['csrf_token'] ?? '';
     
-    // Validate CSRF token
-    if (!validateCSRFToken($csrfToken)) {
+  // Validate CSRF token
+  if (!verifyCSRFToken($csrfToken)) {
         setFlashMessage('error', 'Invalid security token. Please try again.');
     } elseif (empty($subject) || empty($message)) {
         setFlashMessage('error', 'Please fill in all required fields.');

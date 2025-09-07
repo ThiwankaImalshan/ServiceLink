@@ -555,11 +555,21 @@ include 'includes/header.php';
                   <div class="flex items-center space-x-4 sm:flex-col sm:space-x-0 sm:space-y-2">
                     <!-- Profile Image -->
                     <div class="relative flex-shrink-0">
-                      <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-xl overflow-hidden border-3 border-primary-100 dark:border-primary-800">
-                        <img src="<?php echo e(ImageUploader::getProfileImageUrl($provider['profile_photo'])); ?>" 
-                             alt="<?php echo e($provider['first_name'] . ' ' . $provider['last_name']); ?>" 
-                             class="w-full h-full object-cover">
-                      </div>
+                        <div class="w-16 h-16 sm:w-20 sm:h-20 rounded-full overflow-hidden border-3 border-primary-100 dark:border-primary-800">
+                        <?php
+                          $photoPath = str_replace('\\', '/', $provider['profile_photo']);
+                          if (empty($photoPath)) {
+                          $imgSrc = BASE_URL . '/assets/img/default-avatar.png';
+                          } else if (filter_var($photoPath, FILTER_VALIDATE_URL)) {
+                          $imgSrc = $photoPath;
+                          } else {
+                          $imgSrc = BASE_URL . '/serve-upload.php?p=' . rawurlencode(ltrim($photoPath, '/'));
+                          }
+                        ?>
+                        <img src="<?php echo $imgSrc; ?>"
+                           alt="<?php echo e($provider['first_name'] . ' ' . $provider['last_name']); ?>" 
+                           class="w-full h-full object-cover rounded-full">
+                        </div>
                       
                       <!-- Verified Badge -->
                       <?php if ($provider['is_verified']): ?>
