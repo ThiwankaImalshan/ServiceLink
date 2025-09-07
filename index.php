@@ -160,7 +160,7 @@ include 'includes/header.php';
             <i class="fa-solid fa-magnifying-glass group-hover:animate-pulse"></i>
             <span>Browse Services</span>
           </a>
-          <a href="<?php echo BASE_URL; ?>/my-service.php" class="group bg-secondary-500 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-secondary-600 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2">
+          <a href="<?php echo BASE_URL; ?>/login.php" class="group bg-secondary-500 text-white px-8 py-4 rounded-xl font-semibold text-lg hover:bg-secondary-600 transition-all duration-300 transform hover:scale-105 shadow-lg flex items-center space-x-2">
             <i class="fa-solid fa-user-plus group-hover:animate-pulse"></i>
             <span>List Your Service</span>
           </a>

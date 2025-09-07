@@ -6,3 +6,9 @@ deny from all
 <FilesMatch "\.(jpg|jpeg|png|gif|webp)$">
     allow from all
 </FilesMatch>
+
+# Allow existing files/dirs and exclude uploads from rewrites
+RewriteCond %{REQUEST_URI} ^/ServiceLink/uploads/ [OR]
+RewriteCond %{REQUEST_FILENAME} -f [OR]
+RewriteCond %{REQUEST_FILENAME} -d
+RewriteRule ^ - [L]

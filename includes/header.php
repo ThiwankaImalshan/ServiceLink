@@ -203,7 +203,7 @@ $currentPage = getCurrentPage();
         <a href="index.php" class="flex items-center space-x-2 text-xl font-bold text-primary-600 hover:text-primary-700 dark:text-primary-400 dark:hover:text-primary-300 transition-colors">
           <!-- <div class="bg-primary-100 dark:bg-primary-900 p-2 rounded-lg shadow-glow"> -->
             <div class="p-2 rounded-lg shadow-glow">
-            <img src="assets/img/logo.png" alt="ServiceLink Logo" class="h-6 w-6 object-contain" />
+            <img src="<?php echo BASE_URL; ?>/assets/img/logo.png" alt="ServiceLink Logo" class="h-6 w-6 object-contain" />
           </div>
           <span>ServiceLink</span>
         </a>

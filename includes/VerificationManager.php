@@ -253,7 +253,10 @@ class VerificationManager {
      */
     public function getPendingVerifications($type = null) {
         $sql = "
-            SELECT vr.*, u.username, u.first_name, u.last_name, u.email
+            SELECT vr.*, u.username, u.first_name, u.last_name, u.email,
+                   u.linkedin_profile, u.linkedin_verification_status,
+                   u.id_document_front, u.id_document_back, u.id_verification_status,
+                   u.id_verification_notes
             FROM verification_requests vr
             JOIN users u ON vr.user_id = u.id
             WHERE vr.status = 'pending'
@@ -368,6 +371,33 @@ class VerificationManager {
             error_log("Verification rejection error: " . $e->getMessage());
             return ['success' => false, 'message' => 'Failed to reject verification'];
         }
+    }
+    
+    /**
+     * Get verification statistics (counts for each status)
+     */
+    public function getVerificationStats() {
+        $stats = [
+            'id' => ['pending' => 0, 'approved' => 0, 'rejected' => 0],
+            'linkedin' => ['pending' => 0, 'approved' => 0, 'rejected' => 0]
+        ];
+        // ID Verification stats
+        $stmt = $this->db->query("SELECT id_verification_status, COUNT(*) as count FROM users GROUP BY id_verification_status");
+        while ($row = $stmt->fetch()) {
+            $status = strtolower($row['id_verification_status']);
+            if (isset($stats['id'][$status])) {
+                $stats['id'][$status] = (int)$row['count'];
+            }
+        }
+        // LinkedIn Verification stats
+        $stmt = $this->db->query("SELECT linkedin_verification_status, COUNT(*) as count FROM users GROUP BY linkedin_verification_status");
+        while ($row = $stmt->fetch()) {
+            $status = strtolower($row['linkedin_verification_status']);
+            if (isset($stats['linkedin'][$status])) {
+                $stats['linkedin'][$status] = (int)$row['count'];
+            }
+        }
+        return $stats;
     }
 }
 ?>

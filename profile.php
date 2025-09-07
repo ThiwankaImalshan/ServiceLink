@@ -157,68 +157,62 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     // Handle profile photo upload
     if (isset($_POST['upload_photo']) && isset($_FILES['profile_photo']) && $_FILES['profile_photo']['error'] === UPLOAD_ERR_OK) {
         $userId = $currentUser['id'];
-        $uploadDir = 'uploads/profiles/'; // Always use forward slashes for web paths
+
+        // Use separate web and filesystem paths
+        $uploadDirWeb = 'uploads/profiles/';
+        $uploadDirSystem = rtrim(__DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $uploadDirWeb), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
+
         $timestamp = time();
         $ext = strtolower(pathinfo($_FILES['profile_photo']['name'], PATHINFO_EXTENSION));
-        $filename = "user_{$userId}_{$timestamp}.{$ext}";
-        $targetPath = $uploadDir . $filename; // Web-compatible path with forward slashes
-        $fileSystemPath = str_replace('/', DIRECTORY_SEPARATOR, $targetPath); // Convert to file system path for operations
         $allowed = ['jpg', 'jpeg', 'png', 'gif', 'webp'];
-        
-        if (!in_array($ext, $allowed)) {
+
+        if (!in_array($ext, $allowed, true)) {
             $errorMessage = 'Invalid image type. Please upload JPG, PNG, GIF or WEBP files only.';
-        } elseif ($_FILES['profile_photo']['size'] > 5 * 1024 * 1024) { // 5MB limit
+        } elseif ($_FILES['profile_photo']['size'] > 5 * 1024 * 1024) {
             $errorMessage = 'Image file is too large. Please upload files smaller than 5MB.';
         } else {
-            // Ensure upload directory exists (use file system path)
-            $uploadDirSystem = str_replace('/', DIRECTORY_SEPARATOR, $uploadDir);
-            if (!is_dir($uploadDirSystem)) {
-                if (!mkdir($uploadDirSystem, 0777, true)) {
-                    $errorMessage = 'Failed to create upload directory.';
-                } else {
-                    // Create .htaccess for security if it doesn't exist
-                    $htaccessPath = $uploadDirSystem . '.htaccess';
-                    if (!file_exists($htaccessPath)) {
-                        file_put_contents($htaccessPath, "Options -Indexes\nOptions -ExecCGI\nAddHandler cgi-script .php .pl .py .jsp .asp .sh .cgi\n");
-                    }
-                    
-                    // Remove old profile photo if exists
-                    if (!empty($currentUser['profile_photo'])) {
-                        $oldPhotoPath = str_replace('/', DIRECTORY_SEPARATOR, $currentUser['profile_photo']);
-                        if (file_exists($oldPhotoPath)) {
-                            unlink($oldPhotoPath);
-                        }
-                    }
-                    
-                    if (move_uploaded_file($_FILES['profile_photo']['tmp_name'], $fileSystemPath)) {
-                        // Store web-compatible path (with forward slashes) in database
-                        $stmt = $db->prepare("UPDATE users SET profile_photo = ? WHERE id = ?");
-                        if ($stmt->execute([$targetPath, $userId])) {
-                            $successMessage = 'Profile photo updated successfully!';
-                            $currentUser['profile_photo'] = $targetPath;
-                        } else {
-                            $errorMessage = 'Failed to update profile photo in database.';
-                        }
-                    } else {
-                        $errorMessage = 'Failed to upload image file.';
-                    }
-                }
+            // Ensure upload directory exists
+            if (!is_dir($uploadDirSystem) && !mkdir($uploadDirSystem, 0755, true)) {
+                $errorMessage = 'Failed to create upload directory.';
             } else {
-                // Directory already exists, proceed with upload
-                // Remove old profile photo if exists
-                if (!empty($currentUser['profile_photo'])) {
-                    $oldPhotoPath = str_replace('/', DIRECTORY_SEPARATOR, $currentUser['profile_photo']);
-                    if (file_exists($oldPhotoPath)) {
-                        unlink($oldPhotoPath);
+                // Ensure safe .htaccess (no "Options", no handlers)
+                $htaccessPath = $uploadDirSystem . '.htaccess';
+                if (file_exists($htaccessPath)) {
+                    $content = @file_get_contents($htaccessPath) ?: '';
+                    if (preg_match('/\bOptions\b/i', $content) || stripos($content, 'AddHandler') !== false || stripos($content, 'SetHandler') !== false) {
+                        @unlink($htaccessPath);
                     }
                 }
-                
+                if (!file_exists($htaccessPath)) {
+                    $safeHtaccess =
+                "<IfModule mod_authz_core.c>
+                <FilesMatch \"\\.(php|phar|phtml|pl|py|jsp|asp|sh|cgi)$\">
+                    Require all denied
+                </FilesMatch>
+                </IfModule>
+                <IfModule mod_access_compat.c>
+                <FilesMatch \"\\.(php|phar|phtml|pl|py|jsp|asp|sh|cgi)$\">
+                    Order allow,deny
+                    Deny from all
+                </FilesMatch>
+                </IfModule>
+                ";
+                    @file_put_contents($htaccessPath, $safeHtaccess);
+                }
+
+                // Save new file
+                $filename = "user_{$userId}_{$timestamp}.{$ext}";
+                $fileSystemPath = $uploadDirSystem . $filename;
+                $targetPathWeb = $uploadDirWeb . $filename;
+
                 if (move_uploaded_file($_FILES['profile_photo']['tmp_name'], $fileSystemPath)) {
-                    // Store web-compatible path (with forward slashes) in database
+                    @chmod($fileSystemPath, 0644);
+
+                    // Store web path in DB
                     $stmt = $db->prepare("UPDATE users SET profile_photo = ? WHERE id = ?");
-                    if ($stmt->execute([$targetPath, $userId])) {
+                    if ($stmt->execute([$targetPathWeb, $userId])) {
                         $successMessage = 'Profile photo updated successfully!';
-                        $currentUser['profile_photo'] = $targetPath;
+                        $currentUser['profile_photo'] = $targetPathWeb;
                     } else {
                         $errorMessage = 'Failed to update profile photo in database.';
                     }
@@ -291,7 +285,41 @@ $pageDescription = 'Manage your profile information and settings.';
 
 include 'includes/header.php';
 ?>
+<?php
+// Ensure uploads/profiles has a safe .htaccess (no "Options", no handlers)
+$uploadDirWeb = 'uploads/profiles/';
+$uploadDirSystem = rtrim(__DIR__ . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $uploadDirWeb), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR;
 
+if (is_dir($uploadDirSystem)) {
+    $htaccessPath = $uploadDirSystem . '.htaccess';
+
+    // Remove legacy/bad rules that can cause 500
+    if (file_exists($htaccessPath)) {
+        $content = @file_get_contents($htaccessPath) ?: '';
+        if (preg_match('/\bOptions\b/i', $content) || stripos($content, 'AddHandler') !== false || stripos($content, 'SetHandler') !== false) {
+            @unlink($htaccessPath);
+        }
+    }
+
+    // Write a minimal safe .htaccess (deny script execution only)
+    if (!file_exists($htaccessPath)) {
+        $safeHtaccess =
+"<IfModule mod_authz_core.c>
+  <FilesMatch \"\\.(php|phar|phtml|pl|py|jsp|asp|sh|cgi)$\">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule mod_access_compat.c>
+  <FilesMatch \"\\.(php|phar|phtml|pl|py|jsp|asp|sh|cgi)$\">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>
+";
+        @file_put_contents($htaccessPath, $safeHtaccess);
+    }
+}
+?>
 <!-- Main Content -->
 <main class="py-8">
   <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -321,21 +349,16 @@ include 'includes/header.php';
         <div class="relative flex-shrink-0 w-full md:w-auto flex justify-center md:block">
           <div class="relative w-fit mx-auto md:mx-0">
             <?php 
-            // Enhanced profile photo display with debugging
+            // Build photo URL via serve-upload.php (avoid direct file access)
             $profilePhotoPath = $currentUser['profile_photo'] ?? '';
-            $hasValidPhoto = false;
             $photoUrl = '';
-            
+            $hasValidPhoto = false;
+
             if (!empty($profilePhotoPath)) {
-                // Ensure the path uses forward slashes for web display
-                $webPath = str_replace('\\', '/', $profilePhotoPath);
-                // Check if file exists using file system path
-                $fileSystemPath = str_replace('/', DIRECTORY_SEPARATOR, $profilePhotoPath);
-                
-                if (file_exists($fileSystemPath)) {
-                    $hasValidPhoto = true;
-                    $photoUrl = $webPath;
-                }
+                $relPath = ltrim(str_replace('\\', '/', $profilePhotoPath), '/');
+                // Use relative URL to avoid BASE_URL mismatches
+                $photoUrl = 'serve-upload.php?p=' . rawurlencode($relPath);
+                $hasValidPhoto = true;
             }
             ?>
             
@@ -343,11 +366,9 @@ include 'includes/header.php';
             <!-- Profile Photo Display -->
             <div class="profile-photo-container relative mx-auto">
                 <img id="profilePhoto" 
-                     src="<?php echo htmlspecialchars($photoUrl); ?>?v=<?php echo time(); ?>"
+                     src="<?php echo htmlspecialchars($photoUrl); ?>"
                      alt="<?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?>"
                      class="w-32 h-32 sm:w-36 sm:h-36 lg:w-40 lg:h-40 rounded-full object-cover border-4 border-white shadow-2xl ring-4 ring-primary-100 transition-all duration-300 hover:scale-105" 
-                     onload="this.style.opacity='1';"
-                     onerror="handleImageError(this);"
                      style="opacity: 0;" />
                      
                 <!-- Loading placeholder while image loads -->
@@ -445,9 +466,8 @@ include 'includes/header.php';
                   if ($currentUser['role'] === 'provider') {
                     try {
                       $stmt = $db->prepare("SELECT COUNT(*) as count FROM providers WHERE user_id = ?");
-                      $stmt->bind_param("i", $currentUser['id']);
-                      $stmt->execute();
-                      $result = $stmt->get_result()->fetch_assoc();
+                      $stmt->execute([$currentUser['id']]);
+                      $result = $stmt->fetch(PDO::FETCH_ASSOC);
                       $totalServices = $result['count'];
                     } catch (Exception $e) {}
                   }
@@ -474,9 +494,8 @@ include 'includes/header.php';
                   if ($currentUser['role'] === 'provider') {
                     try {
                       $stmt = $db->prepare("SELECT AVG(rating) as avg_rating FROM reviews r JOIN providers p ON r.provider_id = p.id WHERE p.user_id = ?");
-                      $stmt->bind_param("i", $currentUser['id']);
-                      $stmt->execute();
-                      $result = $stmt->get_result()->fetch_assoc();
+                      $stmt->execute([$currentUser['id']]);
+                      $result = $stmt->fetch(PDO::FETCH_ASSOC);
                       if ($result['avg_rating']) {
                         $averageRating = number_format($result['avg_rating'], 1);
                       }
@@ -506,29 +525,29 @@ include 'includes/header.php';
       <div class="border-b border-neutral-200 overflow-x-auto scrollbar-hide">
         <div class="max-w-7xl mx-auto">
           <nav class="flex flex-nowrap justify-start md:justify-center min-w-full px-2 sm:px-4" aria-label="Tabs">
-            <button class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="overview">
+            <button type="button" class="tab-btn border-b-2 border-primary-600 text-primary-600 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="overview">
               <i class="fa-solid fa-chart-line text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
               <span class="text-xs sm:text-sm">Overview</span>
             </button>
             <?php if ($currentUser['role'] === 'provider'): ?>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="services">
+            <button type="button" class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="services">
               <i class="fa-solid fa-briefcase text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
               <span class="text-xs sm:text-sm">Services</span>
             </button>
             <?php endif; ?>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="requests">
+            <button type="button" class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="requests">
               <i class="fa-solid fa-clipboard-list text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
               <span class="text-xs sm:text-sm">Requests</span>
             </button>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="reviews">
+            <button type="button" class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="reviews">
               <i class="fa-solid fa-star text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
               <span class="text-xs sm:text-sm">Reviews</span>
             </button>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="favorites">
+            <button type="button" class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="favorites">
               <i class="fa-solid fa-heart text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
               <span class="text-xs sm:text-sm">Favorites</span>
             </button>
-            <button class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="settings">
+            <button type="button" class="tab-btn border-b-2 border-transparent text-neutral-500 hover:text-neutral-700 hover:border-neutral-300 py-4 px-6 sm:px-8 text-sm whitespace-nowrap font-medium transition-colors flex-shrink-0 flex flex-col sm:flex-row items-center" data-tab="settings">
               <i class="fa-solid fa-cog text-lg sm:text-base mb-1 sm:mb-0 sm:mr-2"></i>
               <span class="text-xs sm:text-sm">Settings</span>
             </button>
@@ -824,9 +843,15 @@ include 'includes/header.php';
                                         <div class="flex items-start space-x-4">
                                             <div class="flex-shrink-0">
                                                 <?php if (!empty($review['profile_photo'])): ?>
-                                                    <img src="<?php echo htmlspecialchars($review['profile_photo']); ?>" 
-                                                         alt="Reviewer" 
-                                                         class="w-12 h-12 rounded-full object-cover">
+                                                    <?php
+                                                        $revPath = str_replace('\\', '/', $review['profile_photo']);
+                                                        $revUrl = filter_var($revPath, FILTER_VALIDATE_URL)
+                                                            ? $revPath
+                                                            : 'serve-upload.php?p=' . rawurlencode(ltrim($revPath, '/'));
+                                                    ?>
+                                                    <img src="<?php echo htmlspecialchars($revUrl); ?>" 
+                                                        alt="Reviewer" 
+                                                        class="w-12 h-12 rounded-full object-cover">
                                                 <?php else: ?>
                                                     <div class="w-12 h-12 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
                                                         <span class="text-primary-600 font-medium text-lg">
@@ -917,9 +942,15 @@ include 'includes/header.php';
                                         <div class="flex items-start space-x-4">
                                             <div class="flex-shrink-0">
                                                 <?php if (!empty($provider['profile_photo'])): ?>
-                                                    <img src="<?php echo htmlspecialchars($provider['profile_photo']); ?>" 
-                                                         alt="Provider" 
-                                                         class="w-16 h-16 rounded-full object-cover">
+                                                    <?php
+                                                        $provPath = str_replace('\\', '/', $provider['profile_photo']);
+                                                        $provUrl = filter_var($provPath, FILTER_VALIDATE_URL)
+                                                            ? $provPath
+                                                            : 'serve-upload.php?p=' . rawurlencode(ltrim($provPath, '/'));
+                                                    ?>
+                                                    <img src="<?php echo htmlspecialchars($provUrl); ?>" 
+                                                        alt="Provider" 
+                                                        class="w-16 h-16 rounded-full object-cover">
                                                 <?php else: ?>
                                                     <div class="w-16 h-16 rounded-full bg-gradient-to-br from-primary-100 to-primary-200 flex items-center justify-center">
                                                         <span class="text-primary-600 font-medium text-xl">
@@ -1352,338 +1383,339 @@ include 'includes/header.php';
         </div>
     </div>
 
-    <script>
-        console.log('🔥 Profile JavaScript with Modals loading...');
+<script>
+    console.log('Profile JavaScript with Modals loading...');
 
-        // Image Error Handling
-        function handleImageError(img) {
-            console.log('❌ Image failed to load:', img.src);
+    // Global Image Error Handling Functions (accessible from HTML)
+    function handleImageError(img) {
+        console.log('Image failed to load:', img.src);
+        
+        // Hide the image and loading indicator
+        img.style.display = 'none';
+        const loadingDiv = document.getElementById('photoLoading');
+        if (loadingDiv) {
+            loadingDiv.style.display = 'none';
+        }
+        
+        // Show the fallback avatar
+        const fallback = document.getElementById('avatarFallback');
+        if (fallback) {
+            fallback.classList.remove('hidden');
+            fallback.classList.add('flex');
+        }
+    }
+
+    // Image Load Success Handler
+    function handleImageLoad(img) {
+        console.log('Image loaded successfully:', img.src);
+        
+        // Hide loading indicator
+        const loadingDiv = document.getElementById('photoLoading');
+        if (loadingDiv) {
+            loadingDiv.style.display = 'none';
+        }
+        
+        // Make image visible with fade-in effect
+        img.style.opacity = '1';
+    }
+
+    // Setup image loading handlers
+    function setupImageHandlers() {
+        const profileImg = document.getElementById('profilePhoto');
+        if (profileImg) {
+            console.log('Profile image src:', profileImg.src);
             
-            // Hide the image and loading indicator
-            img.style.display = 'none';
-            const loadingDiv = document.getElementById('photoLoading');
-            if (loadingDiv) {
-                loadingDiv.style.display = 'none';
-            }
-            
-            // Show the fallback avatar
-            const fallback = document.getElementById('avatarFallback');
-            if (fallback) {
-                fallback.classList.remove('hidden');
-                fallback.classList.add('flex');
-            }
-        }
-
-        // Image Load Success Handler
-        function handleImageLoad(img) {
-            console.log('✅ Image loaded successfully:', img.src);
-            
-            // Hide loading indicator
-            const loadingDiv = document.getElementById('photoLoading');
-            if (loadingDiv) {
-                loadingDiv.style.display = 'none';
-            }
-            
-            // Make image visible with fade-in effect
-            img.style.opacity = '1';
-        }
-
-        // Setup image loading handlers
-        function setupImageHandlers() {
-            const profileImg = document.getElementById('profilePhoto');
-            if (profileImg) {
-                console.log('🖼️ Profile image src:', profileImg.src);
-                
-                profileImg.addEventListener('load', function() {
-                    handleImageLoad(this);
-                });
-                
-                profileImg.addEventListener('error', function() {
-                    handleImageError(this);
-                });
-                
-                // Check if image is already loaded (cached)
-                if (profileImg.complete && profileImg.naturalHeight !== 0) {
-                    handleImageLoad(profileImg);
-                } else if (profileImg.complete) {
-                    // Image failed to load
-                    handleImageError(profileImg);
-                }
-            } else {
-                console.log('📷 No profile image found - using default avatar');
-            }
-        }
-
-        // Modal Functions
-        function openModal(modalId) {
-            console.log('🔓 Opening modal:', modalId);
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.remove('hidden');
-                document.body.style.overflow = 'hidden'; // Prevent background scrolling
-                
-                // Focus on first input if available
-                const firstInput = modal.querySelector('input:not([type="hidden"])');
-                if (firstInput) {
-                    setTimeout(() => firstInput.focus(), 100);
-                }
-            }
-        }
-
-        function closeModal(modalId) {
-            console.log('🔒 Closing modal:', modalId);
-            const modal = document.getElementById(modalId);
-            if (modal) {
-                modal.classList.add('hidden');
-                document.body.style.overflow = 'auto'; // Restore scrolling
-                
-                // Clear form if it's the image upload modal
-                if (modalId === 'imageUploadModal') {
-                    clearImagePreview();
-                }
-            }
-        }
-
-        // Close modal when clicking outside
-        function setupModalCloseOnOutsideClick() {
-            ['imageUploadModal', 'passwordChangeModal', 'profileEditModal'].forEach(modalId => {
-                const modal = document.getElementById(modalId);
-                if (modal) {
-                    modal.addEventListener('click', function(e) {
-                        if (e.target === modal) {
-                            closeModal(modalId);
-                        }
-                    });
-                }
+            profileImg.addEventListener('load', function() {
+                handleImageLoad(this);
             });
+            
+            profileImg.addEventListener('error', function() {
+                handleImageError(this);
+            });
+            
+            // Check if image is already loaded (cached)
+            if (profileImg.complete && profileImg.naturalHeight !== 0) {
+                handleImageLoad(profileImg);
+            } else if (profileImg.complete) {
+                // Image failed to load
+                handleImageError(profileImg);
+            }
+        } else {
+            console.log('No profile image found - using default avatar');
         }
+    }
 
-        // Close modal on Escape key
-        document.addEventListener('keydown', function(e) {
-            if (e.key === 'Escape') {
-                ['imageUploadModal', 'passwordChangeModal', 'profileEditModal'].forEach(modalId => {
-                    const modal = document.getElementById(modalId);
-                    if (modal && !modal.classList.contains('hidden')) {
+    // Modal Functions (Global)
+    function openModal(modalId) {
+        console.log('Opening modal:', modalId);
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.remove('hidden');
+            document.body.style.overflow = 'hidden'; // Prevent background scrolling
+            
+            // Focus on first input if available
+            const firstInput = modal.querySelector('input:not([type="hidden"])');
+            if (firstInput) {
+                setTimeout(() => firstInput.focus(), 100);
+            }
+        }
+    }
+
+    function closeModal(modalId) {
+        console.log('Closing modal:', modalId);
+        const modal = document.getElementById(modalId);
+        if (modal) {
+            modal.classList.add('hidden');
+            document.body.style.overflow = 'auto'; // Restore scrolling
+            
+            // Clear form if it's the image upload modal
+            if (modalId === 'imageUploadModal') {
+                clearImagePreview();
+            }
+        }
+    }
+
+    // Close modal when clicking outside
+    function setupModalCloseOnOutsideClick() {
+        ['imageUploadModal', 'passwordChangeModal', 'profileEditModal'].forEach(modalId => {
+            const modal = document.getElementById(modalId);
+            if (modal) {
+                modal.addEventListener('click', function(e) {
+                    if (e.target === modal) {
                         closeModal(modalId);
                     }
                 });
             }
         });
+    }
 
-        // Password visibility toggle
-        function togglePassword(inputId) {
-            const input = document.getElementById(inputId);
-            const icon = input.nextElementSibling.querySelector('i');
-            
-            if (input.type === 'password') {
-                input.type = 'text';
-                icon.classList.remove('fa-eye');
-                icon.classList.add('fa-eye-slash');
-            } else {
-                input.type = 'password';
-                icon.classList.remove('fa-eye-slash');
-                icon.classList.add('fa-eye');
-            }
+    // Password visibility toggle (Global)
+    function togglePassword(inputId) {
+        const input = document.getElementById(inputId);
+        const icon = input.nextElementSibling.querySelector('i');
+        
+        if (input.type === 'password') {
+            input.type = 'text';
+            icon.classList.remove('fa-eye');
+            icon.classList.add('fa-eye-slash');
+        } else {
+            input.type = 'password';
+            icon.classList.remove('fa-eye-slash');
+            icon.classList.add('fa-eye');
         }
+    }
 
-        // Image Upload Functions
-        function setupImageUpload() {
-            const dropZone = document.getElementById('dropZone');
-            const fileInput = document.getElementById('modalProfilePhoto');
-            const dropZoneContent = document.getElementById('dropZoneContent');
-            const imagePreview = document.getElementById('imagePreview');
-            const previewImg = document.getElementById('previewImg');
-            const fileName = document.getElementById('fileName');
+    // Image Upload Functions
+    function setupImageUpload() {
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('modalProfilePhoto');
+        const dropZoneContent = document.getElementById('dropZoneContent');
+        const imagePreview = document.getElementById('imagePreview');
+        const previewImg = document.getElementById('previewImg');
+        const fileName = document.getElementById('fileName');
 
-            // Click to select file
-            dropZone.addEventListener('click', function(e) {
-                if (e.target.tagName !== 'BUTTON') return;
-                fileInput.click();
-            });
+        if (!dropZone || !fileInput) return;
 
-            // File input change
-            fileInput.addEventListener('change', function(e) {
-                if (e.target.files.length > 0) {
-                    handleFileSelection(e.target.files[0]);
-                }
-            });
-
-            // Drag and drop
-            dropZone.addEventListener('dragover', function(e) {
-                e.preventDefault();
-                dropZone.classList.add('border-primary-500', 'bg-primary-50');
-            });
-
-            dropZone.addEventListener('dragleave', function(e) {
-                e.preventDefault();
-                dropZone.classList.remove('border-primary-500', 'bg-primary-50');
-            });
-
-            dropZone.addEventListener('drop', function(e) {
-                e.preventDefault();
-                dropZone.classList.remove('border-primary-500', 'bg-primary-50');
-                
-                const files = e.dataTransfer.files;
-                if (files.length > 0) {
-                    fileInput.files = files;
-                    handleFileSelection(files[0]);
-                }
-            });
-
-            function handleFileSelection(file) {
-                // Validate file type
-                const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
-                if (!allowedTypes.includes(file.type)) {
-                    alert('Please select a valid image file (JPG, PNG, GIF, WEBP)');
-                    return;
-                }
-
-                // Validate file size (5MB)
-                if (file.size > 5 * 1024 * 1024) {
-                    alert('File size must be less than 5MB');
-                    return;
-                }
-
-                // Show preview
-                const reader = new FileReader();
-                reader.onload = function(e) {
-                    previewImg.src = e.target.result;
-                    fileName.textContent = file.name;
-                    dropZoneContent.classList.add('hidden');
-                    imagePreview.classList.remove('hidden');
-                };
-                reader.readAsDataURL(file);
-            }
-        }
-
-        function clearImagePreview() {
-            const fileInput = document.getElementById('modalProfilePhoto');
-            const dropZoneContent = document.getElementById('dropZoneContent');
-            const imagePreview = document.getElementById('imagePreview');
-            
-            fileInput.value = '';
-            dropZoneContent.classList.remove('hidden');
-            imagePreview.classList.add('hidden');
-        }
-
-        // Tab functionality
-        function switchTab(targetTabId) {
-            console.log('🎯 Switching to tab:', targetTabId);
-            
-            // Get all tab buttons and contents
-            const tabButtons = document.querySelectorAll('.tab-btn');
-            const tabContents = document.querySelectorAll('.tab-content');
-            
-            // Reset all buttons
-            tabButtons.forEach(btn => {
-                btn.classList.remove('border-primary-600', 'text-primary-600');
-                btn.classList.add('border-transparent', 'text-gray-500');
-            });
-            
-            // Hide all contents
-            tabContents.forEach(content => {
-                content.classList.add('hidden');
-            });
-            
-            // Activate target button
-            const targetButton = document.querySelector(`[data-tab="${targetTabId}"]`);
-            if (targetButton) {
-                targetButton.classList.remove('border-transparent', 'text-gray-500');
-                targetButton.classList.add('border-primary-600', 'text-primary-600');
-                console.log('✅ Activated button for:', targetTabId);
-            }
-            
-            // Show target content
-            const targetContent = document.getElementById(targetTabId + '-tab');
-            if (targetContent) {
-                targetContent.classList.remove('hidden');
-                console.log('✅ Showed content for:', targetTabId);
-            } else {
-                console.error('❌ Content not found for:', targetTabId + '-tab');
-            }
-        }
-
-        // Initialize when DOM is ready
-        document.addEventListener('DOMContentLoaded', function() {
-            console.log('🚀 DOM loaded, setting up profile with modals...');
-            
-            // Set up image handling
-            setupImageHandlers();
-            
-            // Set up modals
-            setupModalCloseOnOutsideClick();
-            setupImageUpload();
-            
-            // Set up tab buttons
-            const tabButtons = document.querySelectorAll('.tab-btn');
-            console.log('📊 Found', tabButtons.length, 'tab buttons');
-            
-            tabButtons.forEach((button, index) => {
-                const tabId = button.getAttribute('data-tab');
-                console.log(`🔧 Setting up button ${index + 1}: "${tabId}"`);
-                
-                button.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    console.log('🖱️ Tab clicked:', tabId);
-                    switchTab(tabId);
-                });
-            });
-            
-            // Edit profile button - opens modal instead of switching tab
-            const editProfileBtn = document.getElementById('editProfileBtn');
-            if (editProfileBtn) {
-                editProfileBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    console.log('🖱️ Edit profile clicked - opening modal');
-                    openModal('profileEditModal');
-                });
-                console.log('✅ Edit profile button set up');
-            }
-            
-            // Edit photo button - opens modal instead of switching tab
-            const editPhotoBtn = document.getElementById('editPhotoBtn');
-            if (editPhotoBtn) {
-                editPhotoBtn.addEventListener('click', function(e) {
-                    e.preventDefault();
-                    console.log('🖱️ Edit photo clicked - opening modal');
-                    openModal('imageUploadModal');
-                });
-                console.log('✅ Edit photo button set up');
-            }
-
-            // Add password change button functionality (if you want to add a button for it)
-            // You can add this button anywhere in your UI
-            window.openPasswordModal = function() {
-                openModal('passwordChangeModal');
-            };
-            
-            // Global functions for testing
-            window.switchToTab = switchTab;
-            window.openModal = openModal;
-            window.closeModal = closeModal;
-            window.testProfile = function() {
-                console.log('=== PROFILE TEST ===');
-                const buttons = document.querySelectorAll('.tab-btn');
-                const contents = document.querySelectorAll('.tab-content');
-                
-                console.log('Buttons:', buttons.length);
-                buttons.forEach((btn, i) => {
-                    const tab = btn.getAttribute('data-tab');
-                    const active = btn.classList.contains('border-primary-600');
-                    console.log(`  ${i+1}. ${tab}: ${active ? 'ACTIVE' : 'inactive'}`);
-                });
-                
-                console.log('Contents:', contents.length);
-                contents.forEach((content, i) => {
-                    const hidden = content.classList.contains('hidden');
-                    console.log(`  ${i+1}. ${content.id}: ${hidden ? 'HIDDEN' : 'VISIBLE'}`);
-                });
-            };
-            
-            console.log('✅ Profile with modals setup complete!');
+        // Click to select file
+        dropZone.addEventListener('click', function(e) {
+            if (e.target.tagName !== 'BUTTON') return;
+            fileInput.click();
         });
 
-        console.log('📝 Profile JavaScript with Modals loaded');
-    </script>
+        // File input change
+        fileInput.addEventListener('change', function(e) {
+            if (e.target.files.length > 0) {
+                handleFileSelection(e.target.files[0]);
+            }
+        });
+
+        // Drag and drop
+        dropZone.addEventListener('dragover', function(e) {
+            e.preventDefault();
+            dropZone.classList.add('border-primary-500', 'bg-primary-50');
+        });
+
+        dropZone.addEventListener('dragleave', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-primary-500', 'bg-primary-50');
+        });
+
+        dropZone.addEventListener('drop', function(e) {
+            e.preventDefault();
+            dropZone.classList.remove('border-primary-500', 'bg-primary-50');
+            
+            const files = e.dataTransfer.files;
+            if (files.length > 0) {
+                fileInput.files = files;
+                handleFileSelection(files[0]);
+            }
+        });
+
+        function handleFileSelection(file) {
+            // Validate file type
+            const allowedTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp'];
+            if (!allowedTypes.includes(file.type)) {
+                alert('Please select a valid image file (JPG, PNG, GIF, WEBP)');
+                return;
+            }
+
+            // Validate file size (5MB)
+            if (file.size > 5 * 1024 * 1024) {
+                alert('File size must be less than 5MB');
+                return;
+            }
+
+            // Show preview
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                previewImg.src = e.target.result;
+                fileName.textContent = file.name;
+                dropZoneContent.classList.add('hidden');
+                imagePreview.classList.remove('hidden');
+            };
+            reader.readAsDataURL(file);
+        }
+    }
+
+    function clearImagePreview() {
+        const fileInput = document.getElementById('modalProfilePhoto');
+        const dropZoneContent = document.getElementById('dropZoneContent');
+        const imagePreview = document.getElementById('imagePreview');
+        
+        if (fileInput) fileInput.value = '';
+        if (dropZoneContent) dropZoneContent.classList.remove('hidden');
+        if (imagePreview) imagePreview.classList.add('hidden');
+    }
+
+    // Tab functionality
+    function switchTab(targetTabId) {
+        console.log('Switching to tab:', targetTabId);
+        
+        // Get all tab buttons and contents
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        const tabContents = document.querySelectorAll('.tab-content');
+        
+        // Reset all buttons
+        tabButtons.forEach(btn => {
+            btn.classList.remove('border-primary-600', 'text-primary-600');
+            btn.classList.add('border-transparent', 'text-neutral-500');
+        });
+        
+        // Hide all contents
+        tabContents.forEach(content => {
+            content.classList.add('hidden');
+        });
+        
+        // Activate target button
+        const targetButton = document.querySelector(`[data-tab="${targetTabId}"]`);
+        if (targetButton) {
+           targetButton.classList.remove('border-transparent', 'text-neutral-500');
+            targetButton.classList.add('border-primary-600', 'text-primary-600');
+            console.log('Activated button for:', targetTabId);
+        }
+        
+        // Show target content
+        const targetContent = document.getElementById(targetTabId + '-tab');
+        if (targetContent) {
+            targetContent.classList.remove('hidden');
+            console.log('Showed content for:', targetTabId);
+        } else {
+            console.error('Content not found for:', targetTabId + '-tab');
+        }
+    }
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape') {
+            ['imageUploadModal', 'passwordChangeModal', 'profileEditModal'].forEach(modalId => {
+                const modal = document.getElementById(modalId);
+                if (modal && !modal.classList.contains('hidden')) {
+                    closeModal(modalId);
+                }
+            });
+        }
+    });
+
+    // Initialize when DOM is ready
+    document.addEventListener('DOMContentLoaded', function() {
+        console.log('DOM loaded, setting up profile with modals...');
+        
+        // Set up image handling
+        setupImageHandlers();
+        
+        // Set up modals
+        setupModalCloseOnOutsideClick();
+        setupImageUpload();
+        
+        // Set up tab buttons
+        const tabButtons = document.querySelectorAll('.tab-btn');
+        console.log('Found', tabButtons.length, 'tab buttons');
+        
+        tabButtons.forEach((button, index) => {
+            const tabId = button.getAttribute('data-tab');
+            console.log(`Setting up button ${index + 1}: "${tabId}"`);
+            
+            button.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Tab clicked:', tabId);
+                switchTab(tabId);
+            });
+        });
+        
+        // Edit profile button - opens modal instead of switching tab
+        const editProfileBtn = document.getElementById('editProfileBtn');
+        if (editProfileBtn) {
+            editProfileBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Edit profile clicked - opening modal');
+                openModal('profileEditModal');
+            });
+            console.log('Edit profile button set up');
+        }
+        
+        // Edit photo button - opens modal instead of switching tab
+        const editPhotoBtn = document.getElementById('editPhotoBtn');
+        if (editPhotoBtn) {
+            editPhotoBtn.addEventListener('click', function(e) {
+                e.preventDefault();
+                console.log('Edit photo clicked - opening modal');
+                openModal('imageUploadModal');
+            });
+            console.log('Edit photo button set up');
+        }
+
+        // Global functions for testing
+        window.switchToTab = switchTab;
+        window.openModal = openModal;
+        window.closeModal = closeModal;
+        window.testProfile = function() {
+            console.log('=== PROFILE TEST ===');
+            const buttons = document.querySelectorAll('.tab-btn');
+            const contents = document.querySelectorAll('.tab-content');
+            
+            console.log('Buttons:', buttons.length);
+            buttons.forEach((btn, i) => {
+                const tab = btn.getAttribute('data-tab');
+                const active = btn.classList.contains('border-primary-600');
+                console.log(`  ${i+1}. ${tab}: ${active ? 'ACTIVE' : 'inactive'}`);
+            });
+            
+            console.log('Contents:', contents.length);
+            contents.forEach((content, i) => {
+                const hidden = content.classList.contains('hidden');
+                console.log(`  ${i+1}. ${content.id}: ${hidden ? 'HIDDEN' : 'VISIBLE'}`);
+            });
+        };
+        // Ensure an active tab on load
+        const activeTabBtn = document.querySelector('.tab-btn.border-primary-600') || document.querySelector('.tab-btn[data-tab]');
+        if (activeTabBtn) {
+            switchTab(activeTabBtn.getAttribute('data-tab'));
+        }
+        
+        console.log('Profile with modals setup complete!');
+    });
+
+    console.log('Profile JavaScript with Modals loaded');
+</script>
 
 <?php include 'includes/footer.php'; ?>

@@ -74,9 +74,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                 </div>
                 
                 <!-- Logout -->
-                <a href="<?php echo BASE_URL; ?>/logout.php" 
+                <a href="#" 
                    class="text-neutral-600 hover:text-red-600 transition-colors"
-                   onclick="return confirm('Are you sure you want to logout?')">
+                   onclick="showLogoutModal(); return false;">
                     <i class="fa-solid fa-sign-out-alt"></i>
                 </a>
             </div>
@@ -90,9 +90,9 @@ $current_page = basename($_SERVER['PHP_SELF']);
                     <i class="fa-solid fa-external-link-alt"></i>
                 </a>
                 
-                <a href="<?php echo BASE_URL; ?>/logout.php" 
+                <a href="#" 
                    class="text-neutral-600 hover:text-red-600 transition-colors"
-                   onclick="return confirm('Are you sure you want to logout?')"
+                   onclick="showLogoutModal(); return false;"
                    title="Logout">
                     <i class="fa-solid fa-sign-out-alt"></i>
                 </a>
@@ -161,6 +161,29 @@ $current_page = basename($_SERVER['PHP_SELF']);
     </div>
 </nav>
 
+<!-- Logout Confirmation Modal -->
+<div id="logoutModal" style="display:none; position:fixed; top:0; left:0; width:100vw; height:100vh; background:rgba(30,41,59,0.5); z-index:9999; align-items:center; justify-content:center;">
+  <div style="background:#fff; padding:2rem 2.5rem; border-radius:12px; box-shadow:0 4px 32px rgba(30,41,59,0.15); min-width:320px; text-align:center; border:1px solid #e5e7eb;">
+    <div style="margin-bottom:1.5rem;">
+      <i class="fa-solid fa-sign-out-alt" style="font-size:2rem; color:#ef4444;"></i>
+    </div>
+    <h2 style="margin-bottom:0.75rem; font-size:1.25rem; color:#1e293b; font-weight:600;">Confirm Logout</h2>
+    <p style="margin-bottom:2rem; color:#64748b; font-size:1rem;">Are you sure you want to logout?</p>
+    <div style="display:flex; gap:1rem; justify-content:center;">
+      <button onclick="window.location.href='<?php echo BASE_URL; ?>/logout.php';" style="background:#ef4444; color:#fff; border:none; padding:0.5rem 1.5rem; border-radius:6px; font-weight:500; font-size:1rem; cursor:pointer; box-shadow:0 1px 4px rgba(239,68,68,0.08); transition:background 0.2s;">Logout</button>
+      <button onclick="closeLogoutModal()" style="background:#f3f4f6; color:#1e293b; border:none; padding:0.5rem 1.5rem; border-radius:6px; font-weight:500; font-size:1rem; cursor:pointer; box-shadow:0 1px 4px rgba(30,41,59,0.04); transition:background 0.2s;">Cancel</button>
+    </div>
+  </div>
+</div>
+<script>
+function showLogoutModal() {
+  document.getElementById('logoutModal').style.display = 'flex';
+}
+function closeLogoutModal() {
+  document.getElementById('logoutModal').style.display = 'none';
+}
+</script>
+
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const mobileMenuBtn = document.getElementById('mobile-menu-btn');
@@ -198,4 +221,12 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 });
+</script>
+
+<script>
+// Logout functionality
+function logout() {
+  // Perform logout action, e.g., redirect to logout script
+  window.location.href = '<?php echo BASE_URL; ?>/logout.php';
+}
 </script>

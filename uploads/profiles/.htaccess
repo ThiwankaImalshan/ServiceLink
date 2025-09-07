@@ -1,3 +1,11 @@
-Options -Indexes
-Options -ExecCGI
-AddHandler cgi-script .php .pl .py .jsp .asp .sh .cgi
+<IfModule mod_authz_core.c>
+  <FilesMatch "\.(php|phar|phtml|pl|py|jsp|asp|sh|cgi)$">
+    Require all denied
+  </FilesMatch>
+</IfModule>
+<IfModule mod_access_compat.c>
+  <FilesMatch "\.(php|phar|phtml|pl|py|jsp|asp|sh|cgi)$">
+    Order allow,deny
+    Deny from all
+  </FilesMatch>
+</IfModule>

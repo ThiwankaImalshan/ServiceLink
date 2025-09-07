@@ -55,8 +55,30 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['submit_verification']
 include 'includes/header.php';
 ?>
 
-<div class="min-h-screen bg-gradient-to-br from-primary-50 to-secondary-50 py-8">
-    <div class="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+<div class="min-h-screen bg-gradient-to-br from-blue-900 to-blue-700">
+  <div class="min-h-screen flex">
+    <!-- Left Side Decorative (hidden on mobile) -->
+    <div class="hidden lg:flex lg:w-1/2 relative overflow-hidden">
+      <div class="absolute inset-0 bg-gradient-to-br from-blue-900 to-blue-700"></div>
+      <div class="absolute inset-0 bg-black bg-opacity-20"></div>
+      <div class="absolute top-10 right-10 w-32 h-32 bg-white bg-opacity-10 rounded-full"></div>
+      <div class="absolute bottom-10 left-10 w-24 h-24 bg-blue-300 bg-opacity-20 rounded-full"></div>
+      <div class="absolute top-1/2 right-1/4 w-16 h-16 bg-blue-400 bg-opacity-15 rounded-full"></div>
+      <div class="relative z-10 flex flex-col justify-center px-12 xl:px-16 text-white">
+        <div class="max-w-lg">
+          <h1 class="text-4xl xl:text-5xl font-bold mb-6 leading-tight">
+            ID Verification
+          </h1>
+          <p class="text-xl xl:text-2xl text-blue-100 mb-8 leading-relaxed">
+            Verify your identity to build trust with customers and become a certified provider.
+          </p>
+        </div>
+      </div>
+    </div>
+    <!-- Right Side - Form Card -->
+    <div class="w-full lg:w-1/2 flex items-center justify-center py-8 px-4 sm:px-6 lg:px-8">
+      <div class="max-w-xl w-full bg-white rounded-2xl shadow-xl border border-neutral-100 overflow-hidden">
+        <div class="p-8 space-y-8">
         
         <!-- Header -->
         <div class="text-center mb-8">
@@ -218,7 +240,10 @@ include 'includes/header.php';
                 </div>
             </div>
         </div>
+        </div>
+      </div>
     </div>
+  </div>
 </div>
 
 <script>

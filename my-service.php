@@ -674,7 +674,7 @@ include 'includes/header.php';
                   
                   <!-- Map Container -->
                   <div class="border border-neutral-300 rounded-lg overflow-hidden">
-                    <div id="location-map" style="height: 300px; width: 100%;" class="bg-neutral-100 flex items-center justify-center">
+                    <div id="location-map" style="height: 300px; width: 100%; z-index: 10;" class="bg-neutral-100 flex items-center justify-center">
                       <div class="text-center text-neutral-500">
                         <i class="fa-solid fa-map-marker-alt text-3xl mb-2"></i>
                         <p>Click on map or use current location to set precise location</p>
