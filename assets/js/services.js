@@ -318,12 +318,25 @@ function bindFilterEvents() {
   // Only filter on button click
   document.getElementById('searchButton').addEventListener('click', filterProviders);
   // Clear filters button
-  document.getElementById('clearFilters').addEventListener('click', () => {
-    ['searchInput','priceMin','priceMax','locationInput'].forEach(id => document.getElementById(id).value = '');
-    ['activeOnly','skilledOnly'].forEach(id => document.getElementById(id).checked = false);
-    document.getElementById('categorySelect').value = '';
-    filterProviders();
-  });
+    document.getElementById('clearFilters').addEventListener('click', () => {
+      ['searchInput','priceMin','priceMax','locationInput'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.value = '';
+      });
+      ['activeOnly','skilledOnly'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.checked = false;
+      });
+      const catSel = document.getElementById('categorySelect');
+      if (catSel) catSel.value = '';
+      const distSel = document.getElementById('districtSelect');
+      if (distSel) {
+        distSel.selectedIndex = 0;
+        distSel.value = '';
+        distSel.dispatchEvent(new Event('change'));
+      }
+      filterProviders();
+    });
 }
 
 window.initServicesMap = function() {
