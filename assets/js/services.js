@@ -156,6 +156,10 @@ function renderProviders(items) {
               <i class="fa-solid fa-clock text-primary-500 dark:text-primary-400 text-xs sm:text-sm"></i>
               <span class="font-medium text-xs sm:text-sm">${p.bestCallTime || 'Contact anytime'}</span>
             </span>
+            <!-- Favorite Button -->
+            <button class="favorite-btn flex items-center justify-center px-3 py-1 bg-red-50 dark:bg-red-900/30 rounded-lg border border-red-200/50 dark:border-red-700/50 transition-all duration-300 hover:bg-red-100 dark:hover:bg-red-800/40 ${p.isFavorited ? 'favorited' : ''}" data-provider-id="${p.user_id}">
+              <i class="fa-regular ${p.isFavorited ? 'fa-heart' : 'fa-heart'} text-red-500 dark:text-red-400 text-sm"></i>
+            </button>
           </div>
           
           <!-- Enhanced CTA Button -->
@@ -192,6 +196,30 @@ function renderProviders(items) {
       viewBtn.addEventListener('click', (e) => {
         e.stopPropagation(); // Prevent card click
         window.location.href = `provider-profile.php?id=${encodeURIComponent(p.id)}`;
+      });
+    }
+    
+    // Add favorite button functionality
+    const favoriteBtn = cardDiv.querySelector('.favorite-btn');
+    if (favoriteBtn) {
+      favoriteBtn.addEventListener('click', async (e) => {
+        e.stopPropagation(); // Prevent card click
+        
+        try {
+          const providerId = favoriteBtn.dataset.providerId;
+          const result = await toggleFavorite(providerId);
+          
+          // Update button state and provider data
+          p.isFavorited = result.isFavorited;
+          updateFavoriteButton(favoriteBtn, p.isFavorited);
+          
+          // Show feedback toast
+          const message = p.isFavorited ? 'Added to favorites' : 'Removed from favorites';
+          showToast(message, 'success');
+        } catch (error) {
+          console.error('Error toggling favorite:', error);
+          showToast('Failed to update favorites', 'error');
+        }
       });
     }
     

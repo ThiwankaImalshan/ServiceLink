@@ -113,14 +113,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $errorMessage = 'Email address is already in use.';
             } else {
                 // Update profile
-                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ? WHERE id = ?");
-                
-                if ($stmt->execute([$firstName, $lastName, $email, $phone, $currentUser['id']])) {
+                $gender = trim($_POST['gender'] ?? '');
+                $stmt = $db->prepare("UPDATE users SET first_name = ?, last_name = ?, email = ?, phone = ?, gender = ? WHERE id = ?");
+                if ($stmt->execute([$firstName, $lastName, $email, $phone, $gender, $currentUser['id']])) {
                     $successMessage = 'Profile updated successfully!';
                     $currentUser['first_name'] = $firstName;
                     $currentUser['last_name'] = $lastName;
                     $currentUser['email'] = $email;
                     $currentUser['phone'] = $phone;
+                    $currentUser['gender'] = $gender;
                 } else {
                     $errorMessage = 'Failed to update profile.';
                 }
@@ -421,12 +422,28 @@ if (is_dir($uploadDirSystem)) {
               <h1 id="profileName" class="text-2xl sm:text-3xl lg:text-4xl font-bold text-neutral-900 mb-4">
                 <?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?>
               </h1>
-              <div class="flex flex-col md:flex-row items-center md:items-start space-y-3 md:space-y-0 md:space-x-4 text-neutral-600 text-sm sm:text-base mb-6">
-                <span id="profileLocation" class="flex items-center space-x-3 px-4 py-2 md:px-0 md:py-0">
-                  <i class="fa-solid fa-envelope text-primary-500"></i>
-                  <span class="truncate max-w-[200px] sm:max-w-xs"><?php echo htmlspecialchars($currentUser['email']); ?></span>
+              <div class="flex flex-col md:flex-row items-center md:items-start space-y-2 md:space-y-0 md:space-x-4 text-neutral-600 text-sm sm:text-base mb-4">
+                <span id="profileGender" class="flex items-center space-x-2 px-2 py-1 md:px-0 md:py-0">
+                  <i class="fa-solid fa-venus-mars text-primary-500"></i>
+                  <span class="truncate max-w-[160px] sm:max-w-xs">
+                    <?php
+                      $genderMap = [
+                        'male' => 'Male',
+                        'female' => 'Female',
+                        'other' => 'Other',
+                        '' => 'Not specified',
+                        null => 'Not specified'
+                      ];
+                      $genderKey = isset($currentUser['gender']) ? strtolower($currentUser['gender']) : '';
+                      echo htmlspecialchars($genderMap[$genderKey] ?? 'Not specified');
+                    ?>
+                  </span>
                 </span>
-                <span id="profileJoined" class="flex items-center space-x-3 px-4 py-2 md:px-0 md:py-0">
+                <span id="profileLocation" class="flex items-center space-x-2 px-2 py-1 md:px-0 md:py-0">
+                  <i class="fa-solid fa-envelope text-primary-500"></i>
+                  <span class="truncate max-w-[160px] sm:max-w-xs"><?php echo htmlspecialchars($currentUser['email']); ?></span>
+                </span>
+                <span id="profileJoined" class="flex items-center space-x-2 px-2 py-1 md:px-0 md:py-0">
                   <i class="fa-solid fa-calendar text-primary-500"></i>
                   <span>Joined <?php echo date('M Y', strtotime($currentUser['created_at'])); ?></span>
                 </span>
@@ -460,21 +477,25 @@ if (is_dir($uploadDirSystem)) {
             <div class="bg-gradient-to-r from-blue-50 to-primary-50 p-4 rounded-xl border border-blue-100 hover:shadow-lg transition-shadow duration-300">
               <div class="text-center">
                 <div class="text-2xl sm:text-3xl font-bold text-primary-700 mb-1" id="totalServices">
-                  <?php
-                  // Get provider stats if user is a provider
-                  $totalServices = 0;
-                  if ($currentUser['role'] === 'provider') {
-                    try {
-                      $stmt = $db->prepare("SELECT COUNT(*) as count FROM providers WHERE user_id = ?");
-                      $stmt->execute([$currentUser['id']]);
-                      $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                      $totalServices = $result['count'];
-                    } catch (Exception $e) {}
-                  }
-                  echo $totalServices;
-                  ?>
+                    <?php
+                    if ($currentUser['role'] === 'user') {
+                        echo $stats['favorites'];
+                    } else {
+                        // Get provider stats if user is a provider
+                        $totalServices = 0;
+                        try {
+                            $stmt = $db->prepare("SELECT COUNT(*) as count FROM providers WHERE user_id = ?");
+                            $stmt->execute([$currentUser['id']]);
+                            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                            $totalServices = $result['count'];
+                        } catch (Exception $e) {}
+                        echo $totalServices;
+                    }
+                    ?>
                 </div>
-                <div class="text-sm text-primary-600 font-medium">Services Posted</div>
+                <div class="text-sm text-primary-600 font-medium">
+                    <?php echo ($currentUser['role'] === 'user') ? 'Favorites' : 'Services Posted'; ?>
+                </div>
               </div>
             </div>
             <div class="bg-gradient-to-r from-green-50 to-emerald-50 p-4 rounded-xl border border-green-100 hover:shadow-lg transition-shadow duration-300">
@@ -488,23 +509,27 @@ if (is_dir($uploadDirSystem)) {
             <div class="bg-gradient-to-r from-amber-50 to-yellow-50 p-4 rounded-xl border border-amber-100 hover:shadow-lg transition-shadow duration-300">
               <div class="text-center">
                 <div class="text-2xl sm:text-3xl font-bold text-amber-700 mb-1" id="averageRating">
-                  <?php
-                  // Get average rating if provider
-                  $averageRating = '0.0';
-                  if ($currentUser['role'] === 'provider') {
-                    try {
-                      $stmt = $db->prepare("SELECT AVG(rating) as avg_rating FROM reviews r JOIN providers p ON r.provider_id = p.id WHERE p.user_id = ?");
-                      $stmt->execute([$currentUser['id']]);
-                      $result = $stmt->fetch(PDO::FETCH_ASSOC);
-                      if ($result['avg_rating']) {
-                        $averageRating = number_format($result['avg_rating'], 1);
-                      }
-                    } catch (Exception $e) {}
-                  }
-                  echo $averageRating;
-                  ?>
+                    <?php
+                    if ($currentUser['role'] === 'user') {
+                        echo $stats['reviews'];
+                    } else {
+                        // Get average rating if provider
+                        $averageRating = '0.0';
+                        try {
+                            $stmt = $db->prepare("SELECT AVG(rating) as avg_rating FROM reviews r JOIN providers p ON r.provider_id = p.id WHERE p.user_id = ?");
+                            $stmt->execute([$currentUser['id']]);
+                            $result = $stmt->fetch(PDO::FETCH_ASSOC);
+                            if ($result['avg_rating']) {
+                                $averageRating = number_format($result['avg_rating'], 1);
+                            }
+                        } catch (Exception $e) {}
+                        echo $averageRating;
+                    }
+                    ?>
                 </div>
-                <div class="text-sm text-amber-600 font-medium">Average Rating</div>
+                <div class="text-sm text-amber-600 font-medium">
+                    <?php echo ($currentUser['role'] === 'user') ? 'Reviews added' : 'Average Rating'; ?>
+                </div>
               </div>
             </div>
             <div class="bg-gradient-to-r from-purple-50 to-violet-50 p-4 rounded-xl border border-purple-100 hover:shadow-lg transition-shadow duration-300">
@@ -763,11 +788,11 @@ if (is_dir($uploadDirSystem)) {
                                                 <i class="fas fa-tag mr-1"></i>
                                                 <?php 
                                                 if (isset($request['budget_min']) && isset($request['budget_max'])) {
-                                                    echo '$' . number_format($request['budget_min'], 2) . ' - $' . number_format($request['budget_max'], 2);
+                                                    echo 'Rs.' . number_format($request['budget_min'], 2) . ' - Rs.' . number_format($request['budget_max'], 2);
                                                 } elseif (isset($request['budget_min'])) {
-                                                    echo 'From $' . number_format($request['budget_min'], 2);
+                                                    echo 'From Rs.' . number_format($request['budget_min'], 2);
                                                 } elseif (isset($request['budget_max'])) {
-                                                    echo 'Up to $' . number_format($request['budget_max'], 2);
+                                                    echo 'Up to Rs.' . number_format($request['budget_max'], 2);
                                                 }
                                                 ?>
                                             </span>
@@ -1071,25 +1096,67 @@ if (is_dir($uploadDirSystem)) {
                             <h4 class="font-medium text-gray-900 mb-4">Current Account Information</h4>
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
                                 <div>
-                                    <span class="text-gray-600">Name:</span>
-                                    <span class="ml-2 font-medium"><?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?></span>
+                                    <span class="text-gray-600 align-middle">Name:</span>
+                                    <span 
+                                        class="ml-2 font-medium align-middle"
+                                        style="max-width: 160px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1;"
+                                        id="profileNameInfo"
+                                    >
+                                        <?php echo htmlspecialchars($currentUser['first_name'] . ' ' . $currentUser['last_name']); ?>
+                                    </span>
                                 </div>
                                 <div>
-                                    <span class="text-gray-600">Email:</span>
-                                    <span class="ml-2 font-medium"><?php echo htmlspecialchars($currentUser['email']); ?></span>
+                                    <span class="text-gray-600 align-middle">Email:</span>
+                                    <span 
+                                        class="ml-2 font-medium align-middle"
+                                        style="max-width: 160px; display: inline-block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; line-height: 1;"
+                                        id="profileEmailInfo"
+                                    >
+                                        <?php echo htmlspecialchars($currentUser['email']); ?>
+                                    </span>
                                 </div>
+                                <script>
+                                    function updateProfileInfoClamp() {
+                                        var w = window.innerWidth;
+                                        var nameSpan = document.getElementById('profileNameInfo');
+                                        var emailSpan = document.getElementById('profileEmailInfo');
+                                        if (nameSpan && emailSpan) {
+                                            if (w > 500) {
+                                                nameSpan.style.maxWidth = 'none';
+                                                nameSpan.style.whiteSpace = 'normal';
+                                                nameSpan.style.overflow = 'visible';
+                                                nameSpan.style.textOverflow = 'clip';
+                                                emailSpan.style.maxWidth = 'none';
+                                                emailSpan.style.whiteSpace = 'normal';
+                                                emailSpan.style.overflow = 'visible';
+                                                emailSpan.style.textOverflow = 'clip';
+                                            } else {
+                                                nameSpan.style.maxWidth = '160px';
+                                                nameSpan.style.whiteSpace = 'nowrap';
+                                                nameSpan.style.overflow = 'hidden';
+                                                nameSpan.style.textOverflow = 'ellipsis';
+                                                emailSpan.style.maxWidth = '160px';
+                                                emailSpan.style.whiteSpace = 'nowrap';
+                                                emailSpan.style.overflow = 'hidden';
+                                                emailSpan.style.textOverflow = 'ellipsis';
+                                            }
+                                        }
+                                    }
+                                    window.addEventListener('resize', updateProfileInfoClamp);
+                                    document.addEventListener('DOMContentLoaded', updateProfileInfoClamp);
+                                </script>
                                 <div>
                                     <span class="text-gray-600">Phone:</span>
                                     <span class="ml-2 font-medium"><?php echo htmlspecialchars($currentUser['phone'] ?? 'Not provided'); ?></span>
                                 </div>
-                                <div>
+                                <!-- <div>
                                     <span class="text-gray-600">Role:</span>
                                     <span class="ml-2 font-medium"><?php echo htmlspecialchars(ucfirst($currentUser['role'] ?? 'user')); ?></span>
                                 </div>
                                 <div>
                                     <span class="text-gray-600">Member since:</span>
                                     <span class="ml-2 font-medium"><?php echo date('M j, Y', strtotime($currentUser['created_at'])); ?></span>
-                                </div>
+                                </div> -->
                                 <div>
                                     <span class="text-gray-600">Email Status:</span>
                                     <span class="ml-2">
@@ -1349,6 +1416,15 @@ if (is_dir($uploadDirSystem)) {
                                    value="<?php echo htmlspecialchars($currentUser['last_name']); ?>"
                                    class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                                    required>
+                        </div>
+                        <div>
+                            <label for="modalGender" class="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                            <select id="modalGender" name="gender" class="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500">
+                                <option value="" disabled selected>Select gender</option>
+                                <option value="male" <?php echo (isset($currentUser['gender']) && $currentUser['gender'] === 'male') ? 'selected' : ''; ?>>Male</option>
+                                <option value="female" <?php echo (isset($currentUser['gender']) && $currentUser['gender'] === 'female') ? 'selected' : ''; ?>>Female</option>
+                                <option value="other" <?php echo (isset($currentUser['gender']) && $currentUser['gender'] === 'other') ? 'selected' : ''; ?>>Other</option>
+                            </select>
                         </div>
                     </div>
                     

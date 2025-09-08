@@ -72,6 +72,34 @@ class FavoritesManager {
     /**
      * Get customer's favorite providers
      */
+    /**
+     * Check if a provider is favorited by a customer
+     */
+    public function isProviderFavorited($customerId, $providerId) {
+        try {
+            $stmt = $this->db->prepare("SELECT 1 FROM favorite_providers WHERE customer_id = ? AND provider_id = ? LIMIT 1");
+            $stmt->execute([$customerId, $providerId]);
+            return $stmt->fetchColumn() !== false;
+        } catch (Exception $e) {
+            error_log("Check favorite status error: " . $e->getMessage());
+            return false;
+        }
+    }
+    
+    /**
+     * Get list of provider IDs favorited by a customer
+     */
+    public function getFavoritedProviderIds($customerId) {
+        try {
+            $stmt = $this->db->prepare("SELECT provider_id FROM favorite_providers WHERE customer_id = ?");
+            $stmt->execute([$customerId]);
+            return $stmt->fetchAll(PDO::FETCH_COLUMN);
+        } catch (Exception $e) {
+            error_log("Get favorited provider IDs error: " . $e->getMessage());
+            return [];
+        }
+    }
+
     public function getFavoriteProviders($customerId, $limit = null, $offset = 0) {
         try {
             $sql = "

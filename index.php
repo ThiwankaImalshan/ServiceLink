@@ -130,8 +130,10 @@ try {
     $providerCount = 0;
 }
 
+
 // Include header after processing
 include 'includes/header.php';
+// include 'includes/loader.php';
 ?>
 
   <!-- Hero Section -->

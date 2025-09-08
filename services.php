@@ -82,10 +82,40 @@ try {
     $totalPages = 1;
 }
 
+// Get user's favorite providers first
+$favoritedProviderIds = [];
+if ($currentUser && $currentUser['role'] === 'user') {
+    try {
+        $stmt = $db->prepare("SELECT provider_id FROM favorite_providers WHERE customer_id = ?");
+        $stmt->execute([$currentUser['id']]);
+        $favoritedProviderIds = array_column($stmt->fetchAll(), 'provider_id');
+    } catch (PDOException $e) {
+        error_log("Error getting favorites: " . $e->getMessage());
+    }
+}
+
 // Get providers
 try {
     $query = "
-        SELECT p.*, u.first_name, u.last_name, u.profile_photo, c.name as category_name, c.icon as category_icon, c.slug as category_slug
+        SELECT 
+            p.id,
+            p.user_id,
+            p.category_id,
+            p.business_name,
+            p.location,
+            p.hourly_rate,
+            p.experience_years,
+            p.description,
+            p.is_verified,
+            p.rating,
+            p.review_count,
+            p.is_active,
+            u.first_name,
+            u.last_name,
+            u.profile_photo,
+            c.name as category_name,
+            c.icon as category_icon,
+            c.slug as category_slug
         FROM providers p 
         JOIN users u ON p.user_id = u.id 
         JOIN categories c ON p.category_id = c.id 
@@ -96,7 +126,26 @@ try {
     $stmt = $db->prepare($query);
     $stmt->execute(array_merge($params, [$limit, $offset]));
     $providers = $stmt->fetchAll();
+
+    // Debug log before processing
+    error_log("Raw providers found: " . count($providers));
+    error_log("Favorited provider IDs: " . implode(", ", $favoritedProviderIds));
+    
+    // Initialize isFavorited flag for each provider
+    foreach ($providers as &$provider) {
+        $provider['isFavorited'] = in_array($provider['user_id'], $favoritedProviderIds);
+    }
+    unset($provider); // Break the reference
+    
+    // Debug log after processing
+    error_log("Processed providers:");
+    foreach ($providers as $provider) {
+        error_log("Provider: ID={$provider['id']}, UserID={$provider['user_id']}, IsFavorited=" . 
+            ($provider['isFavorited'] ? 'true' : 'false') . 
+            ", Name={$provider['first_name']} {$provider['last_name']}");
+    }
 } catch (PDOException $e) {
+    error_log("Error getting providers: " . $e->getMessage());
     $providers = [];
 }
 
@@ -123,6 +172,17 @@ if ($category) {
 // Include header after processing
 include 'includes/header.php';
 ?>
+
+<!-- Add base URL and configuration for JavaScript -->
+<script>
+    const BASE_URL = '<?php echo rtrim(BASE_URL, '/'); ?>';
+    // Debug output
+    console.log('Base URL:', BASE_URL);
+</script>
+
+<!-- Load required JavaScript files -->
+<script src="<?php echo BASE_URL; ?>/assets/js/toast.js"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/favorites.js"></script>
 
 <!-- Custom CSS for smooth filtering transitions -->
 <style>
@@ -581,19 +641,40 @@ include 'includes/header.php';
                     
                     <!-- Mobile: Name and Rating -->
                     <div class="flex-1 sm:hidden">
-                      <h3 class="text-lg font-bold text-neutral-900 dark:text-neutral-100 mb-1 line-clamp-1">
-                        <?php echo e($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>
-                      </h3>
-                      <div class="flex items-center space-x-2">
-                        <div class="flex items-center space-x-1 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded text-xs">
-                          <i class="fa-solid fa-star text-yellow-400"></i>
-                          <span class="font-bold text-yellow-700 dark:text-yellow-300">
-                            <?php echo number_format($provider['rating'], 1); ?>
+                      <div class="flex items-center justify-between mb-1">
+                        <h3 class="text-lg font-bold text-neutral-900 dark:text-neutral-100 line-clamp-1">
+                          <?php echo e($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>
+                        </h3>
+                        <!-- Mobile Favorite Heart -->
+                        <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
+                        <button class="favorite-btn text-xl <?php echo (!empty($provider['isFavorited'])) ? 'favorited text-yellow-400' : 'text-neutral-300'; ?> hover:text-yellow-400 transition-colors ml-2" 
+                                onclick="toggleFavorite(this, '<?php echo htmlspecialchars($provider['user_id']); ?>')" 
+                                data-provider-id="<?php echo htmlspecialchars($provider['user_id']); ?>"
+                                title="<?php echo (!empty($provider['isFavorited'])) ? 'Remove from favorites' : 'Add to favorites'; ?>">
+                            <i class="<?php echo (!empty($provider['isFavorited'])) ? 'fas' : 'far'; ?> fa-heart"></i>
+                        </button>
+                        <?php endif; ?>
+                      </div>
+                      <div class="flex items-center justify-between">
+                        <div class="flex items-center space-x-2">
+                          <div class="flex items-center space-x-1 bg-yellow-50 dark:bg-yellow-900/20 px-2 py-1 rounded text-xs">
+                            <i class="fa-solid fa-star text-yellow-400"></i>
+                            <span class="font-bold text-yellow-700 dark:text-yellow-300">
+                              <?php echo number_format($provider['rating'], 1); ?>
+                            </span>
+                          </div>
+                          <span class="text-xs text-neutral-500 dark:text-neutral-400">
+                            (<?php echo $provider['review_count']; ?> reviews)
                           </span>
                         </div>
-                        <span class="text-xs text-neutral-500 dark:text-neutral-400">
-                          (<?php echo $provider['review_count']; ?> reviews)
-                        </span>
+                        <!-- Mobile Rate Button -->
+                        <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
+                        <button class="text-xs text-neutral-500 hover:text-primary-600 dark:text-neutral-400 dark:hover:text-primary-400 transition-colors" 
+                                onclick="showRatingModal(<?php echo $provider['id']; ?>, '<?php echo addslashes($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>')">
+                          <i class="fa-regular fa-star"></i>
+                          <span>Rate</span>
+                        </button>
+                        <?php endif; ?>
                       </div>
                     </div>
                   </div>
@@ -601,23 +682,40 @@ include 'includes/header.php';
                   <!-- Provider Info -->
                   <div class="flex-1 min-w-0">
                     <!-- Desktop: Name and Rating -->
-                    <div class="hidden sm:flex sm:items-start sm:justify-between mb-2">
-                      <div>
-                        <h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100 mb-1">
+                    <div class="hidden sm:flex sm:items-center sm:justify-between mb-2">
+                      <div class="flex items-center gap-3">
+                        <h3 class="text-xl font-bold text-neutral-900 dark:text-neutral-100">
                           <?php echo e($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>
                         </h3>
+                        
+                        <!-- Desktop Rating Badge -->
+                        <div class="flex items-center space-x-1 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1 rounded-lg border border-yellow-100 dark:border-yellow-800">
+                          <i class="fa-solid fa-star text-yellow-400"></i>
+                          <span class="text-sm font-bold text-yellow-700 dark:text-yellow-300">
+                            <?php echo number_format($provider['rating'], 1); ?>
+                          </span>
+                          <span class="text-xs text-neutral-500 dark:text-neutral-400">
+                            (<?php echo $provider['review_count']; ?>)
+                          </span>
+                        </div>
+                        <!-- Rate Provider Button (only for logged-in users with role 'user') -->
+                        <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
+                        <button class="text-sm text-neutral-500 hover:text-primary-600 dark:text-neutral-400 dark:hover:text-primary-400 transition-colors" onclick="showRatingModal(<?php echo $provider['id']; ?>, '<?php echo addslashes($provider['business_name'] ?: ($provider['first_name'] . ' ' . $provider['last_name'])); ?>')">
+                          <i class="fa-regular fa-star"></i>
+                          <span>Rate</span>
+                        </button>
+                        <?php endif; ?>
                       </div>
                       
-                      <!-- Desktop Rating Badge -->
-                      <div class="flex items-center space-x-1 bg-yellow-50 dark:bg-yellow-900/20 px-3 py-1 rounded-lg border border-yellow-100 dark:border-yellow-800">
-                        <i class="fa-solid fa-star text-yellow-400"></i>
-                        <span class="text-sm font-bold text-yellow-700 dark:text-yellow-300">
-                          <?php echo number_format($provider['rating'], 1); ?>
-                        </span>
-                        <span class="text-xs text-neutral-500 dark:text-neutral-400">
-                          (<?php echo $provider['review_count']; ?>)
-                        </span>
-                      </div>
+                      <!-- Desktop Favorite Heart -->
+                      <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
+                      <button class="favorite-btn text-2xl <?php echo (!empty($provider['isFavorited'])) ? 'favorited text-yellow-400' : 'text-neutral-300'; ?> hover:text-yellow-400 transition-colors" 
+                              onclick="toggleFavorite(this, '<?php echo htmlspecialchars($provider['user_id']); ?>')" 
+                              data-provider-id="<?php echo htmlspecialchars($provider['user_id']); ?>"
+                              title="<?php echo (!empty($provider['isFavorited'])) ? 'Remove from favorites' : 'Add to favorites'; ?>">
+                          <i class="<?php echo (!empty($provider['isFavorited'])) ? 'fas' : 'far'; ?> fa-heart"></i>
+                      </button>
+                      <?php endif; ?>
                     </div>
                     
                     <!-- Category and Location -->
@@ -825,7 +923,99 @@ include 'includes/header.php';
 <!-- Provider Data for Map -->
 <script>
 // Provider locations data for map
+// Function to toggle favorite status
+function showToast(message, type = 'error') {
+  const toast = document.createElement('div');
+  toast.className = `fixed bottom-4 right-4 px-6 py-3 rounded-lg shadow-lg z-50 animate-fade-in ${
+    type === 'error' ? 'bg-red-500 text-white' : 'bg-green-500 text-white'
+  }`;
+  toast.textContent = message;
+  document.body.appendChild(toast);
+  
+  setTimeout(() => {
+    toast.classList.add('animate-fade-out');
+    setTimeout(() => toast.remove(), 300);
+  }, 3000);
+}
+
+function toggleFavorite(button, providerId) {
+  // Prevent double-clicks
+  if (button.disabled) return;
+  
+  // Disable button and show loading state
+  button.disabled = true;
+  const icon = button.querySelector('i');
+  const isAdding = icon.classList.contains('far');
+  
+  // Add loading animation
+  button.classList.add('animate-pulse');
+  
+  fetch('api/favorites.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      provider_id: providerId,
+      action: isAdding ? 'add' : 'remove'
+    })
+  })
+  .then(response => {
+    if (!response.ok) {
+      throw new Error(response.status === 401 ? 'Please log in to add favorites' : 'Network response was not ok');
+    }
+    return response.json();
+  })
+  .then(data => {
+    if (data.success) {
+      // Update all instances of this provider's favorite button
+      const buttons = document.querySelectorAll(`.favorite-btn[data-provider-id="${providerId}"]`);
+      buttons.forEach(btn => {
+        const btnIcon = btn.querySelector('i');
+        if (isAdding) {
+          btnIcon.classList.remove('far');
+          btnIcon.classList.add('fas', 'text-yellow-400');
+          btn.classList.remove('text-neutral-300');
+          btn.classList.add('text-yellow-400');
+          // Add bounce animation
+          btnIcon.classList.add('animate-bounce');
+          setTimeout(() => btnIcon.classList.remove('animate-bounce'), 1000);
+        } else {
+          btnIcon.classList.remove('fas', 'text-yellow-400');
+          btnIcon.classList.add('far');
+          btn.classList.remove('text-yellow-400');
+          btn.classList.add('text-neutral-300');
+        }
+        // Update tooltip
+        btn.title = isAdding ? 'Remove from favorites' : 'Add to favorites';
+      });
+      
+      // Show success message
+      showToast(isAdding ? 'Added to favorites' : 'Removed from favorites', 'success');
+    } else {
+      throw new Error(data.message || 'Failed to update favorite');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    // Show error message to user
+    showToast(error.message || 'Failed to update favorite status');
+  });
+}
+
 const providerLocations = <?php
+// Get favorites for current user if logged in
+$favorites = [];
+if ($currentUser && $currentUser['role'] === 'user') {
+    try {
+        $stmt = $db->prepare("SELECT provider_id FROM favorites WHERE user_id = ?");
+        $stmt->execute([$currentUser['id']]);
+        $favorites = array_column($stmt->fetchAll(), 'provider_id');
+    } catch (PDOException $e) {
+        // Silently handle error
+    }
+}
+
 $mapData = [];
 foreach ($providers as $provider) {
     // For now, generate sample coordinates based on location string
@@ -888,6 +1078,9 @@ echo json_encode($mapData);
 
 <script>
 // Enhanced smooth filtering with transitions
+// Global state management
+let isFiltering = false;
+
 document.addEventListener('DOMContentLoaded', function() {
   // Pressing Escape key triggers clearFilters and refreshes results
   document.addEventListener('keydown', function(e) {
@@ -1574,5 +1767,231 @@ document.addEventListener('DOMContentLoaded', function() {
   }
 });
 </script>
+
+<!-- Rating Modal -->
+<div id="ratingModal" class="fixed inset-0 z-50 hidden">
+  <!-- Modal Backdrop -->
+  <div class="fixed inset-0 bg-black bg-opacity-50 backdrop-blur-sm transition-opacity duration-300"></div>
+  
+  <!-- Modal Content -->
+  <div class="fixed inset-0 flex items-center justify-center p-4">
+    <div class="bg-white dark:bg-neutral-800 rounded-xl shadow-2xl w-full max-w-md transform transition-all duration-300 scale-95 opacity-0" id="ratingModalContent">
+      <!-- Modal Header -->
+      <div class="p-6 border-b border-neutral-200 dark:border-neutral-700">
+        <div class="flex items-center justify-between">
+          <h3 class="text-xl font-semibold text-neutral-900 dark:text-neutral-100" id="ratingModalTitle">
+            Rate Provider
+          </h3>
+          <button onclick="hideRatingModal()" class="text-neutral-400 hover:text-neutral-500 dark:hover:text-neutral-300">
+            <i class="fa-solid fa-times"></i>
+          </button>
+        </div>
+      </div>
+      
+      <!-- Modal Body -->
+      <div class="p-6">
+        <form id="ratingForm" class="space-y-4">
+          <input type="hidden" id="providerId" name="providerId">
+          
+          <!-- Star Rating -->
+          <div class="text-center mb-6">
+            <div class="text-3xl space-x-3" id="starRating">
+              <i class="fa-star cursor-pointer text-neutral-300 hover:text-yellow-400 transition-all transform hover:scale-125 star-rating-icon" data-rating="1"></i>
+              <i class="fa-star cursor-pointer text-neutral-300 hover:text-yellow-400 transition-all transform hover:scale-125 star-rating-icon" data-rating="2"></i>
+              <i class="fa-star cursor-pointer text-neutral-300 hover:text-yellow-400 transition-all transform hover:scale-125 star-rating-icon" data-rating="3"></i>
+              <i class="fa-star cursor-pointer text-neutral-300 hover:text-yellow-400 transition-all transform hover:scale-125 star-rating-icon" data-rating="4"></i>
+              <i class="fa-star cursor-pointer text-neutral-300 hover:text-yellow-400 transition-all transform hover:scale-125 star-rating-icon" data-rating="5"></i>
+            </div>
+            <p class="mt-3 text-sm font-medium text-neutral-600 dark:text-neutral-400" id="ratingText">Select your rating</p>
+          </div>
+
+          <style>
+            @keyframes star-bounce {
+              0%, 100% { transform: scale(1); }
+              50% { transform: scale(1.2); }
+            }
+            
+            .star-rating-icon {
+              display: inline-block;
+              transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+            }
+            
+            .star-rating-icon.active {
+              animation: star-bounce 0.4s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+              color: #facc15;
+              text-shadow: 0 0 15px rgba(250, 204, 21, 0.5);
+            }
+
+            #starRating:hover .star-rating-icon {
+              transform: scale(0.9);
+              opacity: 0.75;
+            }
+
+            #starRating .star-rating-icon:hover,
+            #starRating .star-rating-icon:hover ~ .star-rating-icon {
+              transform: scale(1.2);
+              opacity: 1;
+            }
+          </style>
+          
+          <!-- Review Text -->
+          <div>
+            <label for="review" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Your Review</label>
+            <textarea id="review" name="review" rows="3" 
+                      class="w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-neutral-700 dark:text-neutral-100"
+                      placeholder="Share your experience..."></textarea>
+          </div>
+        </form>
+      </div>
+      
+      <!-- Modal Footer -->
+      <div class="p-6 border-t border-neutral-200 dark:border-neutral-700 flex justify-end space-x-3">
+        <button onclick="hideRatingModal()" 
+                class="px-4 py-2 text-neutral-700 dark:text-neutral-300 hover:bg-neutral-100 dark:hover:bg-neutral-700 rounded-lg transition-colors">
+          Cancel
+        </button>
+        <button onclick="submitRating()" 
+                class="px-4 py-2 bg-primary-600 hover:bg-primary-700 text-white rounded-lg transition-colors">
+          Submit Rating
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+// Rating Modal Functionality
+let currentRating = 0;
+const ratingTexts = {
+  1: "Poor",
+  2: "Fair",
+  3: "Good",
+  4: "Very Good",
+  5: "Excellent"
+};
+
+function showRatingModal(providerId, providerName) {
+  const modal = document.getElementById('ratingModal');
+  const modalContent = document.getElementById('ratingModalContent');
+  document.getElementById('providerId').value = providerId;
+  document.getElementById('ratingModalTitle').textContent = `Rate ${providerName}`;
+  
+  // Reset form
+  currentRating = 0;
+  document.getElementById('review').value = '';
+  updateStars(0);
+  document.getElementById('ratingText').textContent = 'Select your rating';
+  
+  // Show modal with animation
+  modal.classList.remove('hidden');
+  setTimeout(() => {
+    modalContent.classList.remove('scale-95', 'opacity-0');
+    modalContent.classList.add('scale-100', 'opacity-100');
+  }, 10);
+  
+  // Prevent body scroll
+  document.body.style.overflow = 'hidden';
+}
+
+function hideRatingModal() {
+  const modal = document.getElementById('ratingModal');
+  const modalContent = document.getElementById('ratingModalContent');
+  
+  modalContent.classList.add('scale-95', 'opacity-0');
+  modalContent.classList.remove('scale-100', 'opacity-100');
+  
+  setTimeout(() => {
+    modal.classList.add('hidden');
+    document.body.style.overflow = '';
+  }, 300);
+}
+
+function updateStars(rating) {
+  const stars = document.querySelectorAll('#starRating i');
+  stars.forEach((star, index) => {
+    star.classList.remove('fas', 'far', 'active');
+    star.classList.add(index < rating ? 'fas' : 'far');
+    
+    if (index < rating) {
+      setTimeout(() => {
+        star.classList.add('active');
+      }, index * 50); // Stagger the animation
+    }
+    
+    star.classList.toggle('text-yellow-400', index < rating);
+    star.classList.toggle('text-neutral-300', index >= rating);
+  });
+  
+  // Update rating text with fade effect
+  const ratingText = document.getElementById('ratingText');
+  ratingText.style.opacity = '0';
+  setTimeout(() => {
+    ratingText.textContent = rating ? ratingTexts[rating] : 'Select your rating';
+    ratingText.style.opacity = '1';
+  }, 200);
+}
+
+// Initialize star rating functionality
+document.getElementById('starRating').addEventListener('click', (e) => {
+  if (e.target.matches('i')) {
+    currentRating = parseInt(e.target.dataset.rating);
+    updateStars(currentRating);
+  }
+});
+
+document.getElementById('starRating').addEventListener('mouseover', (e) => {
+  if (e.target.matches('i')) {
+    updateStars(parseInt(e.target.dataset.rating));
+  }
+});
+
+document.getElementById('starRating').addEventListener('mouseleave', () => {
+  updateStars(currentRating);
+});
+
+function submitRating() {
+  if (!currentRating) {
+    alert('Please select a rating');
+    return;
+  }
+  
+  const providerId = document.getElementById('providerId').value;
+  const review = document.getElementById('review').value;
+  
+  // Submit rating to server
+  fetch('api/ratings.php', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      providerId: providerId,
+      rating: currentRating,
+      review: review
+    })
+  })
+  .then(response => response.json())
+  .then(data => {
+    if (data.success) {
+      // Update the rating display in the provider card
+      hideRatingModal();
+      // Optional: Show success message and reload the page to update ratings
+      alert('Thank you for your rating!');
+      location.reload();
+    } else {
+      alert(data.message || 'Error submitting rating. Please try again.');
+    }
+  })
+  .catch(error => {
+    console.error('Error:', error);
+    alert('Error submitting rating. Please try again.');
+  });
+}
+</script>
+
+<!-- Custom scripts for services page -->
+<script src="<?php echo BASE_URL; ?>/assets/js/toast.js"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/favorites.js"></script>
+<script src="<?php echo BASE_URL; ?>/assets/js/services.js"></script>
 
 <?php include 'includes/footer.php'; ?>

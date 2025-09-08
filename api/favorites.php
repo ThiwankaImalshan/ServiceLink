@@ -53,10 +53,10 @@ try {
     $favoritesManager = new FavoritesManager();
     
     if ($action === 'add') {
-        $result = $favoritesManager->addFavorite($currentUser['id'], $providerId);
+        $result = $favoritesManager->addToFavorites($currentUser['id'], $providerId);
         $message = $result['success'] ? 'Provider added to favorites' : $result['message'];
     } else {
-        $result = $favoritesManager->removeFavorite($currentUser['id'], $providerId);
+        $result = $favoritesManager->removeFromFavorites($currentUser['id'], $providerId);
         $message = $result['success'] ? 'Provider removed from favorites' : $result['message'];
     }
     
