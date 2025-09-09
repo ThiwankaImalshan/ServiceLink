@@ -39,7 +39,7 @@ try {
 try {
   $stmt = $db->prepare("SELECT * FROM categories WHERE active = 1 ORDER BY name ASC");
   $stmt->execute();
-  $categories = $stmt->fetchAll();
+  $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   $categories = [];
 }
@@ -50,7 +50,7 @@ if ($isEditing) {
   try {
     $stmt = $db->prepare("SELECT * FROM qualifications WHERE provider_id = ? ORDER BY year_obtained DESC");
     $stmt->execute([$currentProvider['id']]);
-    $qualifications = $stmt->fetchAll();
+  $qualifications = $stmt->fetchAll(PDO::FETCH_ASSOC);
   } catch (PDOException $e) {
     $qualifications = [];
   }
@@ -361,9 +361,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
           // Execute with error handling
           if (!$stmt->execute($insertData)) {
-            $errorInfo = $stmt->errorInfo();
-            error_log("SQL Error: " . print_r($errorInfo, true));
-            throw new Exception("Database error: " . $errorInfo[2]);
+            error_log("SQL Error: " . $stmt->error);
+            throw new Exception("Database error: " . $stmt->error);
           }
 
           // Log successful insertion

@@ -127,7 +127,7 @@ if ($currentUser && $currentUser['role'] === 'user') {
   try {
     $stmt = $db->prepare("SELECT provider_id FROM favorite_providers WHERE customer_id = ?");
     $stmt->execute([$currentUser['id']]);
-    $favoritedProviderIds = array_column($stmt->fetchAll(), 'provider_id');
+  $favoritedProviderIds = array_column($stmt->fetchAll(PDO::FETCH_ASSOC), 'provider_id');
   } catch (PDOException $e) {
     error_log("Error getting favorites: " . $e->getMessage());
   }
@@ -166,7 +166,7 @@ try {
     ";
   $stmt = $db->prepare($query);
   $stmt->execute(array_merge($params, [$limit, $offset]));
-  $providers = $stmt->fetchAll();
+  $providers = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
   // Debug log before processing
   error_log("Raw providers found: " . count($providers));
@@ -174,7 +174,7 @@ try {
 
   // Initialize isFavorited flag for each provider
   foreach ($providers as &$provider) {
-    $provider['isFavorited'] = in_array($provider['user_id'], $favoritedProviderIds);
+    $provider['isFavorited'] = in_array($provider['id'], $favoritedProviderIds);
   }
   unset($provider); // Break the reference
 
@@ -194,7 +194,7 @@ try {
 try {
   $stmt = $db->prepare("SELECT * FROM categories WHERE active = 1 ORDER BY name ASC");
   $stmt->execute();
-  $categories = $stmt->fetchAll();
+  $categories = $stmt->fetchAll(PDO::FETCH_ASSOC);
 } catch (PDOException $e) {
   $categories = [];
 }
@@ -550,29 +550,29 @@ include 'includes/header.php';
   /* Compact mobile modal styles */
   .mobile-modal-compact {
     max-width: 400px;
-    max-height: 350px;
+    max-height: 500px;
   }
 
   @media (max-width: 480px) {
     .mobile-modal-compact {
-      max-width: calc(100vw - 2rem);
-      max-height: calc(100vh - 6rem);
+      max-width: calc(100vw - 1rem);
+      max-height: calc(100vh - 2rem);
     }
 
     #mobileServicesMap {
-      min-height: 150px;
-      max-height: 170px;
+      min-height: 250px;
+      max-height: 350px;
     }
   }
 
   @media (max-width: 360px) {
     #mobileServicesMap {
-      min-height: 120px;
-      max-height: 140px;
+      min-height: 180px;
+      max-height: 220px;
     }
 
     .mobile-modal-compact {
-      max-height: calc(100vh - 8rem);
+      max-height: calc(100vh - 3rem);
     }
   }
 
@@ -601,6 +601,30 @@ include 'includes/header.php';
 
     .leaflet-popup-content {
       margin: 6px 4px !important;
+    }
+  }
+
+  /* Mobile filters dropdown animation */
+  @media (max-width: 767px) {
+    #filtersPanel {
+      overflow: hidden;
+      max-height: 0;
+      /* collapsed default; JS removes this when opening */
+      opacity: 0;
+      transition: max-height 0.3s ease, opacity 0.2s ease;
+    }
+
+    body.mobile-filter-open #filtersPanel {
+      opacity: 1;
+    }
+
+    .results-grid {
+      transition: margin-top 0.2s ease;
+    }
+
+    body.mobile-filter-open .results-grid {
+      margin-top: 0.25rem;
+      /* slight spacing adjustment when open */
     }
   }
 </style>
@@ -632,7 +656,7 @@ include 'includes/header.php';
         class="bg-white dark:bg-neutral-800 rounded-xl shadow-lg border border-neutral-200 dark:border-neutral-700 p-6 mb-8 filter-container">
         <!-- Search Bar -->
         <div class="flex flex-col lg:flex-row gap-4 mb-6">
-          <div class="flex-1 relative">
+          <div class="flex-1 relative mb-0 md:mb-0">
             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
               <i class="fa-solid fa-magnifying-glass text-neutral-400 dark:text-neutral-500"></i>
             </div>
@@ -640,7 +664,7 @@ include 'includes/header.php';
               class="block w-full pl-10 pr-3 py-3 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-neutral-700 dark:text-neutral-100 placeholder-neutral-500 dark:placeholder-neutral-400 transition-colors"
               placeholder="Search by name, service, or keyword..." />
           </div>
-          <div class="flex gap-3">
+          <div class="flex gap-3 mb-0 md:mb-0">
             <button type="button" id="searchButton"
               class="bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg transition-colors font-medium flex items-center space-x-2 shadow-lg hover:shadow-xl">
               <i class="fa-solid fa-search"></i>
@@ -654,10 +678,28 @@ include 'includes/header.php';
           </div>
         </div>
 
+        <!-- Mobile Filters Toggle -->
+        <div class="md:hidden mb-4">
+          <button
+            type="button"
+            id="mobileFiltersToggle"
+            aria-controls="filtersPanel"
+            aria-expanded="false"
+            class="w-full flex items-center justify-between bg-neutral-100 dark:bg-neutral-700 text-neutral-800 dark:text-neutral-100 px-4 py-3 rounded-lg border border-neutral-200 dark:border-neutral-600">
+            <span class="flex items-center">
+              <i class="fa-solid fa-sliders mr-2 text-primary-600"></i>
+              Filters
+              <span id="activeFiltersBadge"
+                class="ml-2 hidden min-w-[22px] h-[22px] text-xs inline-flex items-center justify-center rounded-full bg-primary-600 text-white"></span>
+            </span>
+            <i id="filtersChevron" class="fa-solid fa-chevron-down text-neutral-500 transition-transform duration-200"></i>
+          </button>
+        </div>
+
         <!-- Filter Options -->
-        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 transition-all duration-300">
+        <div id="filtersPanel" class="hidden md:grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-4 transition-all duration-300">
           <!-- District Filter -->
-          <div class="transition-all duration-200">
+          <div class="transition-all duration-200 mb-4 md:mb-0">
             <label for="districtSelect" class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">District</label>
             <select id="districtSelect" name="district" form="filterForm" class="block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-300 focus:shadow-lg">
               <?php $districts = [
@@ -694,7 +736,7 @@ include 'includes/header.php';
             </select>
           </div>
           <!-- Category Filter -->
-          <div class="transition-all duration-200">
+          <div class="transition-all duration-200 mb-4 md:mb-0">
             <label for="categorySelect"
               class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Category</label>
             <select id="categorySelect" name="category" form="filterForm"
@@ -709,7 +751,7 @@ include 'includes/header.php';
           </div>
 
           <!-- Price Range -->
-          <div class="transition-all duration-200">
+          <div class="transition-all duration-200 mb-4 md:mb-0">
             <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Price range
               (Rs.)</label>
             <div class="flex items-center space-x-2">
@@ -721,27 +763,27 @@ include 'includes/header.php';
                 min="0"
                 class="block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-300 focus:shadow-lg" />
             </div>
-            </div>
+          </div>
 
             <!-- Filters -->
-            <div class="transition-all duration-200">
-              <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Filters</label>
-                <div class="flex items-center space-x-6 mt-5">
+            <div class="transition-all duration-200 mb-4 md:mb-0">
+            <label class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Filters</label>
+            <div class="flex items-center space-x-6 mt-5">
               <label class="flex items-center cursor-pointer">
                 <input type="checkbox" id="verifiedOnly" name="verified" value="1" <?php echo (isset($_GET['verified']) && $_GET['verified'] == '1') ? 'checked' : ''; ?>
-                class="text-primary-600 border-neutral-300 dark:border-neutral-600 rounded focus:ring-primary-500 dark:bg-neutral-700 transition-all duration-200" />
+                  class="text-primary-600 border-neutral-300 dark:border-neutral-600 rounded focus:ring-primary-500 dark:bg-neutral-700 transition-all duration-200" />
                 <span class="ml-2 text-sm text-neutral-700 dark:text-neutral-300 transition-colors duration-200">Verified</span>
               </label>
               <label class="flex items-center cursor-pointer">
                 <input type="checkbox" id="skilledOnly" name="rating" value="4" <?php echo $rating == '4' ? 'checked' : ''; ?>
-                class="text-primary-600 border-neutral-300 dark:border-neutral-700 rounded focus:ring-primary-500 dark:bg-neutral-700 transition-all duration-200" />
-                <span class="ml-2 text-sm text-neutral-700 dark:text-neutral-300 transition-colors duration-200">Most Rated</span>
+                  class="text-primary-600 border-neutral-300 dark:border-neutral-700 rounded focus:ring-primary-500 dark:bg-neutral-700 transition-all duration-200" />
+                <span class="ml-2 text-sm text-neutral-700 dark:text-neutral-300 transition-colors duration-200">Rated</span>
               </label>
-              </div>
             </div>
+          </div>
 
           <!-- Location -->
-          <div class="transition-all duration-200">
+          <div class="transition-all duration-200 mb-4 md:mb-0">
             <label for="locationInput"
               class="block text-sm font-medium text-neutral-700 dark:text-neutral-300 mb-2">Location</label>
             <input type="text" id="locationInput" name="location" value="<?php echo e($location); ?>"
@@ -749,7 +791,7 @@ include 'includes/header.php';
               class="block w-full px-3 py-2 border border-neutral-300 dark:border-neutral-600 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500 dark:bg-neutral-700 dark:text-neutral-100 transition-all duration-300 focus:shadow-lg" />
           </div>
           <!-- Apply Filters Button in grid -->
-          <div class="flex items-end pt-2">
+          <div class="flex items-end pt-2 mb-4 md:mb-0">
             <button type="button" id="applyFilters"
               class="w-full bg-primary-600 hover:bg-primary-700 text-white px-6 py-3 rounded-lg transition-colors font-medium flex items-center justify-center space-x-2 shadow-lg hover:shadow-xl">
               <i class="fa-solid fa-filter"></i>
@@ -760,6 +802,20 @@ include 'includes/header.php';
         <!-- Manual Filter Button Row -->
         <!-- Removed manual filter button row, now in grid above -->
       </div>
+      <style>
+        @media (max-width: 767px) {
+
+          #filtersPanel>div,
+          .filter-container>.flex,
+          .filter-container>.md\:hidden {
+            margin-bottom: 1rem !important;
+          }
+
+          #filtersPanel>div:last-child {
+            margin-bottom: 0 !important;
+          }
+        }
+      </style>
 
       <!-- Loading Indicator -->
       <div id="loadingIndicator" class="hidden mt-4 text-center">
@@ -778,7 +834,7 @@ include 'includes/header.php';
 
     <!-- Results Layout -->
     <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      <div class="grid grid-cols-1 lg:grid-cols-3 gap-8 results-grid">
         <!-- Provider List -->
         <div class="lg:col-span-2">
           <div id="providersList" class="space-y-4">
@@ -849,8 +905,8 @@ include 'includes/header.php';
                             <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
                               <button
                                 class="favorite-btn text-xl <?php echo (!empty($provider['isFavorited'])) ? 'favorited text-yellow-400' : 'text-neutral-300'; ?> hover:text-yellow-400 transition-colors ml-2"
-                                onclick="toggleFavorite(this, '<?php echo htmlspecialchars($provider['user_id']); ?>')"
-                                data-provider-id="<?php echo htmlspecialchars($provider['user_id']); ?>"
+                                onclick="toggleFavorite(this, '<?php echo htmlspecialchars($provider['id']); ?>')"
+                                data-provider-id="<?php echo htmlspecialchars($provider['id']); ?>"
                                 title="<?php echo (!empty($provider['isFavorited'])) ? 'Remove from favorites' : 'Add to favorites'; ?>">
                                 <i class="<?php echo (!empty($provider['isFavorited'])) ? 'fas' : 'far'; ?> fa-heart"></i>
                               </button>
@@ -917,8 +973,8 @@ include 'includes/header.php';
                           <?php if ($currentUser && $currentUser['role'] === 'user'): ?>
                             <button
                               class="favorite-btn text-2xl <?php echo (!empty($provider['isFavorited'])) ? 'favorited text-yellow-400' : 'text-neutral-300'; ?> hover:text-yellow-400 transition-colors"
-                              onclick="toggleFavorite(this, '<?php echo htmlspecialchars($provider['user_id']); ?>')"
-                              data-provider-id="<?php echo htmlspecialchars($provider['user_id']); ?>"
+                              onclick="toggleFavorite(this, '<?php echo htmlspecialchars($provider['id']); ?>')"
+                              data-provider-id="<?php echo htmlspecialchars($provider['id']); ?>"
                               title="<?php echo (!empty($provider['isFavorited'])) ? 'Remove from favorites' : 'Add to favorites'; ?>">
                               <i class="<?php echo (!empty($provider['isFavorited'])) ? 'fas' : 'far'; ?> fa-heart"></i>
                             </button>
@@ -1272,6 +1328,113 @@ include 'includes/header.php';
     let isFiltering = false;
 
     document.addEventListener('DOMContentLoaded', function() {
+      const mobileToggle = document.getElementById('mobileFiltersToggle');
+      const panel = document.getElementById('filtersPanel');
+      const chevron = document.getElementById('filtersChevron');
+      const badge = document.getElementById('activeFiltersBadge');
+
+      function computeActiveFilters() {
+        let count = 0;
+        if (document.getElementById('searchInput')?.value.trim()) count++;
+        if (document.getElementById('categorySelect')?.value) count++;
+        if (document.getElementById('districtSelect')?.value) count++;
+        if (document.getElementById('locationInput')?.value.trim()) count++;
+        if (document.getElementById('priceMin')?.value) count++;
+        if (document.getElementById('priceMax')?.value) count++;
+        if (document.getElementById('verifiedOnly')?.checked) count++;
+        if (document.getElementById('skilledOnly')?.checked) count++;
+        if (badge) {
+          if (count > 0) {
+            badge.textContent = count;
+            badge.classList.remove('hidden');
+          } else {
+            badge.textContent = '';
+            badge.classList.add('hidden');
+          }
+        }
+      }
+
+      function openPanel() {
+        if (!panel) return;
+        panel.classList.remove('hidden');
+        panel.style.maxHeight = panel.scrollHeight + 'px'; // animate down
+        document.body.classList.add('mobile-filter-open');
+        mobileToggle?.setAttribute('aria-expanded', 'true');
+        chevron?.classList.add('rotate-180');
+        setTimeout(() => {
+          panel.style.maxHeight = 'none'; // allow internal growth after animation
+        }, 300);
+      }
+
+      function closePanel() {
+        if (!panel) return;
+        panel.style.maxHeight = panel.scrollHeight + 'px'; // set current height
+        panel.offsetHeight; // reflow
+        panel.style.maxHeight = '0px'; // animate up
+        chevron?.classList.remove('rotate-180');
+        document.body.classList.remove('mobile-filter-open');
+        mobileToggle?.setAttribute('aria-expanded', 'false');
+        panel.addEventListener(
+          'transitionend',
+          () => {
+            panel.classList.add('hidden');
+            panel.style.maxHeight = '';
+          }, {
+            once: true
+          }
+        );
+      }
+
+      mobileToggle?.addEventListener('click', () => {
+        if (panel.classList.contains('hidden')) openPanel();
+        else closePanel();
+      });
+
+      // Keep correct state when resizing
+      const mq = window.matchMedia('(min-width: 768px)');
+
+      function handleMq(e) {
+        if (e.matches) {
+          // md and up: always open
+          panel?.classList.remove('hidden');
+          panel?.style.removeProperty('max-height');
+          document.body.classList.remove('mobile-filter-open');
+          chevron?.classList.remove('rotate-180');
+          mobileToggle?.setAttribute('aria-expanded', 'true');
+        } else {
+          // below md: collapse by default
+          if (panel && !document.body.classList.contains('mobile-filter-open')) {
+            panel.classList.add('hidden');
+            panel.style.removeProperty('max-height');
+            mobileToggle?.setAttribute('aria-expanded', 'false');
+          }
+        }
+      }
+      mq.addEventListener ? mq.addEventListener('change', handleMq) : mq.addListener(handleMq);
+      handleMq(mq);
+
+      // Update active filter count initially and on changes
+      computeActiveFilters();
+      ['input', 'change'].forEach((evt) => {
+        document.getElementById('searchInput')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('categorySelect')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('districtSelect')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('locationInput')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('priceMin')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('priceMax')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('verifiedOnly')?.addEventListener(evt, computeActiveFilters);
+        document.getElementById('skilledOnly')?.addEventListener(evt, computeActiveFilters);
+      });
+
+      // Close the panel on Apply/Reset (mobile), then continue your existing logic
+      document.getElementById('applyFilters')?.addEventListener('click', () => {
+        if (window.innerWidth < 768 && !panel.classList.contains('hidden')) closePanel();
+      });
+      document.getElementById('clearFilters')?.addEventListener('click', () => {
+        if (window.innerWidth < 768 && !panel.classList.contains('hidden')) closePanel();
+        setTimeout(computeActiveFilters, 0);
+      });
+
       // Pressing Escape key triggers clearFilters and refreshes results
       document.addEventListener('keydown', function(e) {
         if (e.key === 'Escape') {

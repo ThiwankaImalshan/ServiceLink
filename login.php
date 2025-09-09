@@ -26,6 +26,122 @@ $loginError = '';
 $registerError = '';
 $registerSuccess = '';
 
+// Handle login form submission
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['login'])) {
+    if (verifyCSRFToken($_POST['csrf_token'] ?? '')) {
+        $username = trim($_POST['username'] ?? '');
+        $password = $_POST['password'] ?? '';
+        $rememberMe = isset($_POST['remember_me']) && $_POST['remember_me'] === '1';
+        
+        if ($username && $password) {
+            $result = $auth->login($username, $password);
+            if ($result['success']) {
+                // If remember me is checked, set a long-lasting cookie
+                if ($rememberMe) {
+                    // Create a secure remember token
+                    $rememberToken = bin2hex(random_bytes(32));
+                    $hashedToken = password_hash($rememberToken, PASSWORD_DEFAULT);
+                    $expires = time() + (30 * 24 * 60 * 60); // 30 days
+                    
+                    try {
+                        // Store the hashed token in database
+                        $stmt = $db->prepare("
+                            INSERT INTO remember_tokens (user_id, token_hash, expires_at, created_at) 
+                            VALUES (?, ?, ?, NOW())
+                            ON DUPLICATE KEY UPDATE 
+                            token_hash = VALUES(token_hash), 
+                            expires_at = VALUES(expires_at), 
+                            created_at = NOW()
+                        ");
+                        $stmt->execute([$_SESSION['user_id'], $hashedToken, date('Y-m-d H:i:s', $expires)]);
+                        
+                        // Set the cookie with the plain token
+                        setcookie('remember_me', $rememberToken, [
+                            'expires' => $expires,
+                            'path' => '/',
+                            'domain' => '',
+                            'secure' => isset($_SERVER['HTTPS']),
+                            'httponly' => true,
+                            'samesite' => 'Strict'
+                        ]);
+                    } catch (PDOException $e) {
+                        error_log("Remember me token creation failed: " . $e->getMessage());
+                    }
+                }
+                
+                setFlashMessage('Welcome back, ' . $_SESSION['full_name'] . '!', 'success');
+                redirect(BASE_URL . '/index.php');
+            } else {
+                $loginError = $result['message'];
+            }
+        } else {
+            $loginError = 'Please fill in all fields.';
+        }
+    } else {
+        $loginError = 'Invalid request. Please try again.';
+    }
+}
+
+// Add this function to check remember me cookie (add to top of file after includes)
+function checkRememberMe($db, $auth) {
+    if (!isset($_COOKIE['remember_me']) || $auth->isLoggedIn()) {
+        return false;
+    }
+    
+    $token = $_COOKIE['remember_me'];
+    
+    try {
+        // Get all valid tokens for verification
+        $stmt = $db->prepare("
+            SELECT rt.user_id, rt.token_hash, u.username, u.email, u.first_name, u.last_name, u.role
+            FROM remember_tokens rt 
+            JOIN users u ON rt.user_id = u.id 
+            WHERE rt.expires_at > NOW() AND u.status = 'active'
+        ");
+        $stmt->execute();
+        $tokens = $stmt->fetchAll(PDO::FETCH_ASSOC);
+        
+        foreach ($tokens as $tokenData) {
+            if (password_verify($token, $tokenData['token_hash'])) {
+                // Valid token found, log the user in
+                $_SESSION['user_id'] = $tokenData['user_id'];
+                $_SESSION['username'] = $tokenData['username'];
+                $_SESSION['email'] = $tokenData['email'];
+                $_SESSION['full_name'] = $tokenData['first_name'] . ' ' . $tokenData['last_name'];
+                $_SESSION['role'] = $tokenData['role'];
+                $_SESSION['logged_in'] = true;
+                
+                // Update last login
+                $updateStmt = $db->prepare("UPDATE users SET last_login = NOW() WHERE id = ?");
+                $updateStmt->execute([$tokenData['user_id']]);
+                
+                return true;
+            }
+        }
+        
+        // No valid token found, remove the cookie
+        setcookie('remember_me', '', [
+            'expires' => time() - 3600,
+            'path' => '/',
+            'domain' => '',
+            'secure' => isset($_SERVER['HTTPS']),
+            'httponly' => true,
+            'samesite' => 'Strict'
+        ]);
+        
+    } catch (PDOException $e) {
+        error_log("Remember me check failed: " . $e->getMessage());
+    }
+    
+    return false;
+}
+
+// Add this near the top after getting database connection
+// Check remember me cookie before processing forms
+if (checkRememberMe($db, $auth)) {
+    redirect(BASE_URL . '/index.php');
+}
+
 // Check for verification success message
 if (isset($_GET['verified']) && $_GET['verified'] === '1') {
     $registerSuccess = 'Email verified successfully! You can now login to your account.';
@@ -330,11 +446,12 @@ include 'includes/header_simple.php';
           </div>
 
           <div class="flex items-center justify-between">
-            <label class="flex items-center">
-              <input type="checkbox" class="rounded border-neutral-300 text-primary-600 focus:ring-primary-500">
-              <span class="ml-2 text-sm text-neutral-600">Remember me</span>
-            </label>
-            <a href="<?php echo BASE_URL; ?>/forgot-password.php" class="text-sm text-primary-600 hover:text-primary-700">Forgot password?</a>
+              <label class="flex items-center">
+                  <input type="checkbox" name="remember_me" id="remember_me" value="1" 
+                        class="rounded border-neutral-300 text-primary-600 focus:ring-primary-500">
+                  <span class="ml-2 text-sm text-neutral-600">Remember me</span>
+              </label>
+              <a href="<?php echo BASE_URL; ?>/forgot-password.php" class="text-sm text-primary-600 hover:text-primary-700">Forgot password?</a>
           </div>
 
           <button type="submit" name="login" 
@@ -343,6 +460,55 @@ include 'includes/header_simple.php';
           </button>
         </form>
       </div>
+
+      <script>
+      // Add JavaScript to handle remember me preference persistence
+      document.addEventListener('DOMContentLoaded', function() {
+          const rememberCheckbox = document.getElementById('remember_me');
+          const usernameInput = document.getElementById('username');
+          
+          // Load saved credentials if remember me was previously checked
+          if (localStorage.getItem('rememberMe') === 'true') {
+              const savedUsername = localStorage.getItem('savedUsername');
+              if (savedUsername) {
+                  usernameInput.value = savedUsername;
+                  rememberCheckbox.checked = true;
+              }
+          }
+          
+          // Save/clear credentials when checkbox changes
+          rememberCheckbox.addEventListener('change', function() {
+              if (this.checked) {
+                  localStorage.setItem('rememberMe', 'true');
+                  if (usernameInput.value) {
+                      localStorage.setItem('savedUsername', usernameInput.value);
+                  }
+              } else {
+                  localStorage.removeItem('rememberMe');
+                  localStorage.removeItem('savedUsername');
+              }
+          });
+          
+          // Save username when it changes (if remember me is checked)
+          usernameInput.addEventListener('input', function() {
+              if (rememberCheckbox.checked) {
+                  localStorage.setItem('savedUsername', this.value);
+              }
+          });
+          
+          // Handle form submission
+          const loginForm = document.querySelector('#login-form form');
+          loginForm.addEventListener('submit', function() {
+              if (rememberCheckbox.checked) {
+                  localStorage.setItem('rememberMe', 'true');
+                  localStorage.setItem('savedUsername', usernameInput.value);
+              } else {
+                  localStorage.removeItem('rememberMe');
+                  localStorage.removeItem('savedUsername');
+              }
+          });
+      });
+      </script>
 
       <!-- Register Form -->
       <div id="register-form" class="p-6 bg-white hidden">

@@ -342,3 +342,232 @@ function sendPasswordChangedEmail($email, $firstName) {
         return ['success' => false, 'message' => 'Failed to send notification email'];
     }
 }
+
+/**
+ * Send contact message email to provider
+ */
+function sendContactEmail($providerEmail, $providerName, $senderName, $senderEmail, $senderPhone, $subject, $message, $contactMethod) {
+    $mail = createMailer();
+    if (!$mail) {
+        return ['success' => false, 'message' => 'Email system configuration error'];
+    }
+    
+    try {
+        $mail->addAddress($providerEmail, $providerName);
+        $mail->Subject = 'New Contact Request - ' . $subject;
+        
+        $mail->Body = getContactEmailTemplate($providerName, $senderName, $senderEmail, $senderPhone, $subject, $message, $contactMethod);
+        
+        $altMessage = "Hello $providerName,\n\n";
+        $altMessage .= "You have received a new contact request through ServiceLink.\n\n";
+        $altMessage .= "From: $senderName\n";
+        $altMessage .= "Email: $senderEmail\n";
+        if ($senderPhone) {
+            $altMessage .= "Phone: $senderPhone\n";
+        }
+        $altMessage .= "Preferred Contact: " . ucfirst($contactMethod) . "\n";
+        $altMessage .= "Subject: $subject\n\n";
+        $altMessage .= "Message:\n$message\n\n";
+        $altMessage .= "Please respond to this inquiry promptly to maintain your professional reputation.\n\n";
+        $altMessage .= "Best regards,\nServiceLink Team";
+        
+        $mail->AltBody = $altMessage;
+        
+        $mail->send();
+        return ['success' => true, 'message' => 'Contact email sent successfully'];
+    } catch (Exception $e) {
+        error_log("Contact email error: " . $e->getMessage());
+        return ['success' => false, 'message' => 'Failed to send contact email'];
+    }
+}
+
+/**
+ * Generate contact email template
+ */
+function getContactEmailTemplate($providerName, $senderName, $senderEmail, $senderPhone, $subject, $message, $contactMethod) {
+    $preferredContact = '';
+    $contactMethodText = ucfirst($contactMethod);
+    
+    if ($contactMethod === 'phone' && $senderPhone) {
+        $preferredContact = "<p><strong>Phone:</strong> <a href=\"tel:$senderPhone\" style=\"color: #007bff; text-decoration: none;\">$senderPhone</a></p>";
+    } elseif ($contactMethod === 'both' && $senderPhone) {
+        $preferredContact = "<p><strong>Phone:</strong> <a href=\"tel:$senderPhone\" style=\"color: #007bff; text-decoration: none;\">$senderPhone</a></p>";
+    }
+    
+    return "
+    <!DOCTYPE html>
+    <html>
+    <head>
+        <meta charset='UTF-8'>
+        <title>New Contact Request</title>
+        <style>
+            body { 
+                font-family: 'Inter', Arial, sans-serif; 
+                line-height: 1.6; 
+                color: #333; 
+                margin: 0; 
+                padding: 0; 
+                background-color: #f8fafc;
+            }
+            .container { 
+                max-width: 600px; 
+                margin: 20px auto; 
+                background: white;
+                border-radius: 12px;
+                overflow: hidden;
+                box-shadow: 0 10px 25px rgba(0, 0, 0, 0.1);
+            }
+            .header { 
+                background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+                color: white; 
+                padding: 30px 20px; 
+                text-align: center; 
+            }
+            .header h1 {
+                margin: 0 0 10px 0;
+                font-size: 24px;
+                font-weight: 700;
+            }
+            .header p {
+                margin: 0;
+                opacity: 0.9;
+                font-size: 16px;
+            }
+            .content { 
+                padding: 30px 20px; 
+                background: white; 
+            }
+            .contact-info {
+                background: #f1f5f9;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+                border-left: 4px solid #3b82f6;
+            }
+            .contact-info h3 {
+                margin: 0 0 15px 0;
+                color: #1e40af;
+                font-size: 18px;
+            }
+            .contact-info p {
+                margin: 8px 0;
+                font-size: 14px;
+            }
+            .message-box {
+                background: #f8fafc;
+                border: 1px solid #e2e8f0;
+                border-radius: 8px;
+                padding: 20px;
+                margin: 20px 0;
+            }
+            .message-box h4 {
+                margin: 0 0 15px 0;
+                color: #334155;
+                font-size: 16px;
+            }
+            .message-text {
+                white-space: pre-wrap;
+                font-size: 14px;
+                line-height: 1.6;
+                color: #475569;
+            }
+            .cta-button {
+                display: inline-block;
+                background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+                color: white;
+                padding: 12px 24px;
+                text-decoration: none;
+                border-radius: 6px;
+                margin: 15px 0;
+                font-weight: 600;
+                text-align: center;
+            }
+            .footer { 
+                text-align: center; 
+                padding: 20px; 
+                background: #f8fafc;
+                color: #64748b; 
+                font-size: 12px; 
+                border-top: 1px solid #e2e8f0;
+            }
+            .footer p {
+                margin: 5px 0;
+            }
+            .badge {
+                display: inline-block;
+                background: #dbeafe;
+                color: #1e40af;
+                padding: 4px 8px;
+                border-radius: 4px;
+                font-size: 12px;
+                font-weight: 600;
+                margin: 0 5px;
+            }
+            @media (max-width: 600px) {
+                .container {
+                    margin: 10px;
+                    border-radius: 8px;
+                }
+                .header, .content {
+                    padding: 20px 15px;
+                }
+                .contact-info, .message-box {
+                    padding: 15px;
+                }
+            }
+        </style>
+    </head>
+    <body>
+        <div class='container'>
+            <div class='header'>
+                <h1>🔗 ServiceLink</h1>
+                <p>New Contact Request</p>
+            </div>
+            <div class='content'>
+                <p>Hello <strong>$providerName</strong>,</p>
+                <p>You have received a new contact request through ServiceLink! A potential client is interested in your services.</p>
+                
+                <div class='contact-info'>
+                    <h3>👤 Contact Information</h3>
+                    <p><strong>Name:</strong> $senderName</p>
+                    <p><strong>Email:</strong> <a href=\"mailto:$senderEmail\" style=\"color: #3b82f6; text-decoration: none;\">$senderEmail</a></p>
+                    $preferredContact
+                    <p><strong>Preferred Contact Method:</strong> <span class='badge'>$contactMethodText</span></p>
+                </div>
+                
+                <div class='message-box'>
+                    <h4>📋 Subject: $subject</h4>
+                    <div class='message-text'>$message</div>
+                </div>
+                
+                <p><strong>💡 Quick Response Tips:</strong></p>
+                <ul style='color: #475569; font-size: 14px; line-height: 1.6;'>
+                    <li>Respond within 24 hours to maintain your professional reputation</li>
+                    <li>Ask specific questions about their project requirements</li>
+                    <li>Provide a clear timeline and pricing estimate</li>
+                    <li>Share relevant examples of your previous work</li>
+                </ul>
+                
+                <div style='text-align: center; margin: 30px 0;'>
+                    <a href=\"mailto:$senderEmail?subject=Re: $subject\" class='cta-button' style='color: white; text-decoration: none;'>
+                        📧 Reply to $senderName
+                    </a>
+                </div>
+                
+                <p style='background: #fef3c7; border: 1px solid #f59e0b; color: #92400e; padding: 15px; border-radius: 6px; font-size: 14px;'>
+                    <strong>⚡ Pro Tip:</strong> Quick responses lead to more bookings! Studies show that providers who respond within the first hour are 7x more likely to get hired.
+                </p>
+                
+                <p>Thank you for being part of the ServiceLink community!</p>
+                <p>Best regards,<br><strong>The ServiceLink Team</strong></p>
+            </div>
+            <div class='footer'>
+                <p>This message was sent through ServiceLink's secure contact system.</p>
+                <p>📧 Do not reply to this email directly - please respond to the sender's email address above.</p>
+                <p>&copy; " . date('Y') . " ServiceLink. All rights reserved.</p>
+            </div>
+        </div>
+    </body>
+    </html>
+    ";
+}

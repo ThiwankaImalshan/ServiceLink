@@ -24,7 +24,7 @@ class FavoritesManager {
             }
             
             // Validate provider exists and is a provider
-            $stmt = $this->db->prepare("SELECT id FROM providers WHERE user_id = ?");
+            $stmt = $this->db->prepare("SELECT id FROM providers WHERE id = ?");
             $stmt->execute([$providerId]);
             if (!$stmt->fetch()) {
                 return ['success' => false, 'message' => 'Provider not found'];
