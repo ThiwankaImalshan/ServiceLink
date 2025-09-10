@@ -957,30 +957,30 @@ include 'includes/header.php';
 
     <?php if ($isEditing): ?>
       <!-- Profile Photo Upload Section -->
-      <div class="mt-8 bg-white rounded-2xl shadow-lg border border-neutral-200 p-6">
+      <!-- <div class="mt-8 bg-white rounded-2xl shadow-lg border border-neutral-200 p-6">
         <h3 class="text-lg font-semibold text-neutral-900 mb-4 flex items-center">
           <i class="fa-solid fa-camera text-primary-600 mr-2"></i>
           Profile Photo
         </h3>
 
         <div class="flex flex-col sm:flex-row items-start sm:items-center space-y-4 sm:space-y-0 sm:space-x-6">
-          <div class="flex-shrink-0">
+          <div class="flex-shrink-0"> -->
             <!-- Current Profile Photo -->
-            <div id="current-photo">
+            <!-- <div id="current-photo">
               <img src="<?php echo e(ImageUploader::getProfileImageUrl($currentUser['profile_photo'])); ?>"
                 alt="Profile Photo"
                 class="w-20 h-20 rounded-full object-cover border-4 border-primary-100">
-            </div>
+            </div> -->
 
             <!-- Photo Preview -->
-            <div id="photo-preview" class="hidden">
+            <!-- <div id="photo-preview" class="hidden">
               <img id="preview-image" src="" alt="Profile Preview"
                 class="w-20 h-20 rounded-full object-cover border-4 border-primary-200">
               <p class="text-xs text-center text-neutral-600 mt-2">New Photo Preview</p>
-            </div>
+            </div> -->
 
             <!-- Upload Placeholder -->
-            <div id="photo-placeholder" class="hidden w-20 h-20 rounded-full bg-neutral-100 border-4 border-dashed border-neutral-300 flex items-center justify-center">
+            <!-- <div id="photo-placeholder" class="hidden w-20 h-20 rounded-full bg-neutral-100 border-4 border-dashed border-neutral-300 flex items-center justify-center">
               <i class="fa-solid fa-camera text-xl text-neutral-400"></i>
             </div>
           </div>
@@ -1016,10 +1016,10 @@ include 'includes/header.php';
             </form>
           </div>
         </div>
-      </div>
+      </div> -->
 
       <!-- Additional Actions -->
-      <div class="mt-8 bg-white rounded-2xl shadow-lg border border-neutral-200 p-6">
+      <!-- <div class="mt-8 bg-white rounded-2xl shadow-lg border border-neutral-200 p-6">
         <h3 class="text-lg font-semibold text-neutral-900 mb-4 flex items-center">
           <i class="fa-solid fa-cog text-primary-600 mr-2"></i>
           Additional Actions
@@ -1038,7 +1038,7 @@ include 'includes/header.php';
             <span>Account Settings</span>
           </a>
         </div>
-      </div>
+      </div> -->
     <?php endif; ?>
 
   </div>
